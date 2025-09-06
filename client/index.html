@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resource Booking Calendar</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        // API Configuration
+        const API_BASE_URL = 'http://localhost:3000/api';
+        axios.defaults.baseURL = API_BASE_URL;
+
+        // Handle API errors globally
+        axios.interceptors.response.use(
+            response => response,
+            error => {
+                console.error('API Error:', error.response?.data || error.message);
+                return Promise.reject(error);
+            }
+        );
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>Resource Booking Calendar</h1>
+        
+        <div class="calendar-controls">
+            <button id="prevMonth">&lt;</button>
+            <h2 id="monthDisplay"></h2>
+            <button id="nextMonth">&gt;</button>
+        </div>
+
+        <div class="calendar" id="calendar">
+            <div class="calendar-header">
+                <div>Sun</div>
+                <div>Mon</div>
+                <div>Tue</div>
+                <div>Wed</div>
+                <div>Thu</div>
+                <div>Fri</div>
+                <div>Sat</div>
+            </div>
+            <div id="calendarDays" class="calendar-days"></div>
+        </div>
+
+        <div id="bookingModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>Book Resource</h3>
+                <form id="bookingForm">
+                    <div class="booking-step" id="step1">
+                        <div class="form-group">
+                            <label for="resourceSelect">Select Resource:</label>
+                            <select id="resourceSelect" required>
+                                <option value="">Select a resource...</option>
+                            </select>
+                        </div>
+                        <div class="resource-info" id="resourceInfo"></div>
+                        <button type="button" id="nextStep" disabled>Next</button>
+                    </div>
+                    
+                    <div class="booking-step" id="step2" style="display: none;">
+                        <div class="form-group">
+                            <label for="timeSlot">Select Time:</label>
+                            <select id="timeSlot" required></select>
+                        </div>
+                        <div class="button-group">
+                            <button type="button" id="prevStep">Back</button>
+                            <button type="submit">Book</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Day View Modal -->
+    <div id="dayViewModal" class="modal">
+        <div class="modal-content day-view-content">
+            <span class="close" id="closeDayView">&times;</span>
+            <h3 id="dayViewDate">Date</h3>
+            <div class="time-slots-container">
+                <div class="time-slots">
+                    <!-- Time slots will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bookings-section">
+        <h2>Current Bookings</h2>
+        <button id="exportBookings">Export Bookings as JSON</button>
+        <pre id="bookingsDisplay" class="json-display"></pre>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
