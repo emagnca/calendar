@@ -1,67 +1,74 @@
 const mongoose = require('mongoose');
+const Resource = require('./Resource');
 
-// Default booking configurations (same as in handler.js)
-const DEFAULT_BOOKING_CONFIG = {
-    default: {
-        duration: 60,
-        startTime: '09:00',
-        endTime: '17:00'
-    },
-    'projector': {
-        duration: 120,
-        startTime: '10:00',
-        endTime: '16:00'
-    },
-    'room': {
-        duration: 60,
-        startTime: '09:00',
-        endTime: '17:00'
-    }
-};
-
-// Helper function to get booking config
-function getBookingConfig(resourceId) {
-    let type = 'default';
-    if (resourceId.includes('projector')) {
-        type = 'projector';
-    } else if (resourceId.includes('room')) {
-        type = 'room';
-    }
-    return DEFAULT_BOOKING_CONFIG[type];
+// Helper function to validate time format
+function validateTimeFormat(time) {
+    return /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time);
 }
 
-// Helper function to validate time format and slot
-function validateTimeSlot(time, resourceId) {
-    // First check time format
-    if (!/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time)) {
-        return false;
-    }
-
-    const config = getBookingConfig(resourceId);
+// Helper function to convert time to minutes
+function timeToMinutes(time) {
     const [hours, minutes] = time.split(':').map(Number);
-    const timeInMinutes = hours * 60 + minutes;
-
-    // Convert config times to minutes
-    const [startHours, startMinutes] = config.startTime.split(':').map(Number);
-    const [endHours, endMinutes] = config.endTime.split(':').map(Number);
-    const startTimeInMinutes = startHours * 60 + startMinutes;
-    const endTimeInMinutes = endHours * 60 + endMinutes;
-
-    // Check if time is within bounds
-    if (timeInMinutes < startTimeInMinutes || timeInMinutes >= endTimeInMinutes) {
-        return false;
-    }
-
-    // Check if time aligns with slot duration
-    return (timeInMinutes - startTimeInMinutes) % config.duration === 0;
+    return hours * 60 + minutes;
 }
 
+// Helper function to validate time slot against resource config
+async function validateTimeSlot(time, resourceId) {
+    // First check time format
+    if (!validateTimeFormat(time)) {
+        return { isValid: false, error: 'Invalid time format' };
+    }
+
+    try {
+        // Get resource configuration from database
+        const resource = await Resource.findOne({ resourceId });
+        if (!resource) {
+            return { isValid: false, error: 'Resource not found' };
+        }
+
+        const timeInMinutes = timeToMinutes(time);
+        const startTimeInMinutes = timeToMinutes(resource.earliest || '09:00');
+        const endTimeInMinutes = timeToMinutes(resource.latest || '17:00');
+
+        // Check if time is within bounds
+        if (timeInMinutes < startTimeInMinutes || timeInMinutes >= endTimeInMinutes) {
+            return { 
+                isValid: false, 
+                error: `Time must be between ${resource.earliest} and ${resource.latest}` 
+            };
+        }
+
+        // Check if time aligns with slot duration
+        const slotLength = resource.slot_length || 60; // Default to 60 minutes if not set
+        if ((timeInMinutes - startTimeInMinutes) % slotLength !== 0) {
+            return { 
+                isValid: false, 
+                error: `Time must align with ${slotLength} minute intervals` 
+            };
+        }
+
+        return { isValid: true };
+    } catch (error) {
+        return { isValid: false, error: 'Error validating time slot' };
+    }
+}
+
+// Event schema definition
 const eventSchema = new mongoose.Schema({
     resourceId: {
         type: String,
         required: true
     },
     resourceName: {
+        type: String,
+        required: true
+    },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    userEmail: {
         type: String,
         required: true
     },
@@ -73,26 +80,27 @@ const eventSchema = new mongoose.Schema({
         type: String,
         required: true,
         validate: {
-            validator: function(v) {
-                return validateTimeSlot(v, this.resourceId);
+            validator: async function(time) {
+                const result = await validateTimeSlot(time, this.resourceId);
+                if (!result.isValid) {
+                    this.invalidate('time', result.error);
+                    return false;
+                }
+                return true;
             },
-            message: props => {
-                const config = getBookingConfig(this.resourceId);
-                return `${props.value} is not a valid time slot. Must be between ${config.startTime} and ${config.endTime} with ${config.duration} minute intervals.`;
-            }
+            message: props => props.reason || 'Invalid time slot'
         }
     },
     status: {
         type: String,
-        enum: ['confirmed', 'cancelled'],
+        enum: { 
+            values: ['confirmed', 'cancelled'],
+            message: 'Invalid status'
+        },
         default: 'confirmed'
     }
 }, {
-    timestamps: true,
-    indexes: [
-        // Compound index for checking availability
-        { resourceId: 1, date: 1, time: 1 }
-    ]
+    timestamps: true
 });
 
 // Add a unique compound index to prevent double bookings

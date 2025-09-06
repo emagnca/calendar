@@ -73,23 +73,72 @@ const timeSlots = [
 // Get availability for a specific resource and date
 async function getResourceAvailability(resourceId, date) {
     try {
+        console.log('Fetching availability for:', { resourceId, date });
         const response = await axios.get('/availability', {
             params: {
                 date: date,
                 resourceId: resourceId
             }
         });
+        console.log('Availability response:', response.data);
         return response.data;
     } catch (error) {
         console.error('Error getting availability:', error);
+        console.error('Error details:', {
+            status: error.response?.status,
+            data: error.response?.data,
+            message: error.message
+        });
         throw error;
+    }
+}
+
+// Cancel a booking
+async function cancelBooking(bookingId, element) {
+    if (!confirm('Are you sure you want to cancel this booking?')) {
+        return;
+    }
+
+    try {
+        await axios.patch(`/events/${bookingId}/cancel`);
+        
+        // Update UI
+        const bookingItem = element.closest('.booking-item');
+        if (bookingItem) {
+            bookingItem.classList.add('cancelled');
+            const statusSpan = bookingItem.querySelector('.status');
+            if (statusSpan) {
+                statusSpan.textContent = 'cancelled';
+            }
+            element.remove(); // Remove the cancel button
+        }
+
+        // Refresh calendar view
+        await fetchBookingsForMonth(currentDate);
+        renderCalendar();
+    } catch (error) {
+        console.error('Error cancelling booking:', error);
+        alert(error.response?.data?.error || 'Error cancelling booking');
     }
 }
 
 // Handle resource selection
 async function handleResourceSelection(resourceId, container, timeSlotsContainer) {
+    console.log('Handling resource selection:', { resourceId, selectedDate });
     const resource = resources.find(r => r.resourceId === resourceId);
-    if (!resource || !selectedDate || !container) return;
+    const currentUserId = currentUser?.id;
+    if (!resource) {
+        console.error('Resource not found:', resourceId);
+        return;
+    }
+    if (!selectedDate) {
+        console.error('No date selected');
+        return;
+    }
+    if (!container) {
+        console.error('No container provided');
+        return;
+    }
 
     try {
         // Get availability from server
@@ -119,7 +168,14 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
                             <div class="booking-container">
                                 ${slot.isAvailable ? 
                                     `<button onclick="handleInlineBooking('${resourceId}', '${slot.time}')">Book</button>` : 
-                                    '<span class="booked-label">Booked</span>'}
+                                    slot.booking ? 
+                                        `<span class="booking-info">
+                                            <span class="status">${slot.booking.status}</span>
+                                            ${slot.booking.userId === currentUser?.id ? 
+                                                `<button onclick="cancelBooking('${slot.booking.id}', this)">Cancel</button>` : 
+                                                ''}
+                                        </span>` : 
+                                        '<span class="booked-label">Booked</span>'}
                             </div>
                         </div>
                     `).join('')}
@@ -392,6 +448,7 @@ function resetBookingForm() {
 
 // Show day view
 async function showDayView() {
+    const currentUserId = currentUser?.id;
     try {
         if (!selectedDate) return;
 
@@ -780,6 +837,170 @@ function exportBookings() {
 // Add styles for modals
 const styles = document.createElement('style');
 styles.textContent = `
+    .error-message {
+        color: #dc3545;
+        padding: 10px;
+        margin: 10px 0;
+        border: 1px solid #dc3545;
+        border-radius: 4px;
+        background-color: #ffebee;
+    }
+
+    .error-message p {
+        margin: 5px 0;
+    }
+
+    .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .user-info {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .user-info span {
+        color: #2c3e50;
+        font-weight: 500;
+    }
+
+    .logout-button {
+        padding: 8px 16px;
+        background-color: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .logout-button:hover {
+        background-color: #c82333;
+    }
+
+    .time-slot.cancelled {
+        background-color: #ffebee;
+        opacity: 0.7;
+    }
+
+    .time-slot .booking-info {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .time-slot .status {
+        font-size: 12px;
+        text-transform: uppercase;
+        font-weight: 500;
+    }
+
+    .time-slot .user-label {
+        font-size: 12px;
+        color: #2196f3;
+        font-weight: 500;
+    }
+
+    .time-slot.cancelled .status {
+        color: #d32f2f;
+    }
+
+    .my-bookings {
+        margin-top: 20px;
+    }
+
+    .booking-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px;
+        margin-bottom: 10px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        transition: transform 0.2s;
+    }
+
+    .booking-item:hover {
+        transform: translateY(-2px);
+    }
+
+    .booking-item.cancelled {
+        background-color: #ffebee;
+        opacity: 0.7;
+    }
+
+    .booking-info {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .booking-info strong {
+        color: #2c3e50;
+        font-size: 16px;
+    }
+
+    .booking-info span {
+        color: #6c757d;
+        font-size: 14px;
+    }
+
+    .booking-info .status {
+        text-transform: uppercase;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .booking-item.cancelled .status {
+        color: #d32f2f;
+    }
+
+    .booking-item button {
+        padding: 8px 16px;
+        background-color: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .booking-item button:hover {
+        background-color: #c82333;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        color: #495057;
+        font-weight: 500;
+    }
+
+    .form-group input {
+        width: 100%;
+        padding: 10px;
+        border: 2px solid #e9ecef;
+        border-radius: 6px;
+        font-size: 16px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-group input:focus {
+        outline: none;
+        border-color: #4caf50;
+        box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+    }
+
     .modal {
         display: none;
         position: fixed;
@@ -966,19 +1187,307 @@ styles.textContent = `
 `;
 document.head.appendChild(styles);
 
-// Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', async () => {
+// Authentication state
+let currentUser = null;
+let authToken = localStorage.getItem('authToken');
+
+// Try to restore user info from localStorage
+try {
+    const userJson = localStorage.getItem('currentUser');
+    if (userJson) {
+        currentUser = JSON.parse(userJson);
+    }
+} catch (error) {
+    console.error('Error restoring user info:', error);
+    localStorage.removeItem('currentUser');
+}
+
+// Show login form
+function showLoginForm() {
+    // Remove any existing login modal
+    const existingModal = document.getElementById('loginModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    const loginModal = document.createElement('div');
+    loginModal.id = 'loginModal';
+    loginModal.className = 'modal';
+    loginModal.style.display = 'block';
+    loginModal.style.zIndex = '1000';
+    
+    loginModal.innerHTML = `
+        <div class="modal-content">
+            <h2>Login</h2>
+
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" required>
+                </div>
+                <button type="submit">Login</button>
+                <button type="button" id="showRegister">Register</button>
+            </form>
+        </div>
+    `;
+    
+    document.body.appendChild(loginModal);
+    
+    // Handle login
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        
+        try {
+            const response = await axios.post('/login', { email, password });
+            authToken = response.data.token;
+            currentUser = response.data.user;
+            
+            // Store token and user info
+            localStorage.setItem('authToken', authToken);
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            
+            // Set default Authorization header for all future requests
+            axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
+            
+            // Remove login modal and initialize calendar
+            loginModal.remove();
+            updateUserInfo();
+            initializeCalendar();
+        } catch (error) {
+            alert(error.response?.data?.error || 'Login failed');
+        }
+    });
+    
+    // Show registration form
+    document.getElementById('showRegister').addEventListener('click', () => {
+        loginModal.remove();
+        showRegisterForm();
+    });
+}
+
+// Show registration form
+function showRegisterForm() {
+    // Remove any existing register modal
+    const existingModal = document.getElementById('registerModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    const registerModal = document.createElement('div');
+    registerModal.id = 'registerModal';
+    registerModal.className = 'modal';
+    registerModal.style.display = 'block';
+    registerModal.style.zIndex = '1000';
+    
+    registerModal.innerHTML = `
+        <div class="modal-content">
+            <h2>Register</h2>
+            <form id="registerForm">
+                <div class="form-group">
+                    <label for="name">Name:</label>
+                    <input type="text" id="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" required>
+                </div>
+                <button type="submit">Register</button>
+                <button type="button" id="showLogin">Back to Login</button>
+            </form>
+        </div>
+    `;
+    
+    document.body.appendChild(registerModal);
+    
+    // Handle registration
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('name').value;
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        
+        try {
+            const response = await axios.post('/register', { name, email, password });
+            authToken = response.data.token;
+            currentUser = response.data.user;
+            
+            // Store token and user info
+            localStorage.setItem('authToken', authToken);
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            
+            // Set default Authorization header for all future requests
+            axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
+            
+            // Remove register modal and initialize calendar
+            registerModal.remove();
+            updateUserInfo();
+            initializeCalendar();
+        } catch (error) {
+            alert(error.response?.data?.error || 'Registration failed');
+        }
+    });
+    
+    // Show login form
+    document.getElementById('showLogin').addEventListener('click', () => {
+        registerModal.remove();
+        showLoginForm();
+    });
+}
+
+// Update user info display
+function updateUserInfo() {
+    const userInfo = document.getElementById('userInfo');
+    const userName = document.getElementById('userName');
+    
+    if (currentUser) {
+        userName.textContent = `${currentUser.name} (${currentUser.email})`;
+        userInfo.style.display = 'flex';
+    } else {
+        userInfo.style.display = 'none';
+    }
+}
+
+// Handle logout
+function handleLogout() {
+    // Clear auth data
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('currentUser');
+    authToken = null;
+    currentUser = null;
+    
+    // Clear axios default header
+    delete axios.defaults.headers.common['Authorization'];
+    
+    // Update UI
+    updateUserInfo();
+    
+    // Show login form
+    showLoginForm();
+}
+
+// Initialize calendar after authentication
+async function initializeCalendar() {
     try {
-        console.log('Initializing calendar...');
-        await fetchResources(); // This updates the global resources array
+        console.log('Initializing calendar...', { currentUser });
+        await fetchResources();
         if (resources.length === 0) {
             alert('No resources available. Please add some resources to the system.');
         }
         await fetchBookingsForMonth(currentDate);
+        await fetchMyBookings(); // Fetch user's bookings
         initCalendar();
         console.log('Calendar initialized successfully');
     } catch (error) {
         console.error('Error during initialization:', error);
         alert('Error initializing the calendar. Please refresh the page.');
     }
+}
+
+// Fetch user's bookings
+async function fetchMyBookings() {
+    try {
+        const response = await axios.get('/events/my-bookings');
+        const bookings = response.data;
+        displayMyBookings(bookings);
+    } catch (error) {
+        console.error('Error fetching my bookings:', error);
+    }
+}
+
+// Display user's bookings
+function displayMyBookings(bookings) {
+    const myBookingsDiv = document.getElementById('myBookings');
+    if (!myBookingsDiv) return;
+
+    if (bookings.length === 0) {
+        myBookingsDiv.innerHTML = '<p>You have no upcoming bookings.</p>';
+        return;
+    }
+
+    const bookingsList = bookings.map(booking => {
+        const date = new Date(booking.date).toLocaleDateString();
+        return `
+            <div class="booking-item ${booking.status}">
+                <div class="booking-info">
+                    <strong>${booking.resourceName}</strong>
+                    <span>${date} at ${booking.time}</span>
+                    <span class="status">${booking.status}</span>
+                </div>
+                ${booking.status === 'confirmed' ? `
+                    <button onclick="cancelBooking('${booking._id}')">Cancel</button>
+                ` : ''}
+            </div>
+        `;
+    }).join('');
+
+    myBookingsDiv.innerHTML = bookingsList;
+}
+
+// Cancel a booking
+async function cancelBooking(bookingId) {
+    if (!confirm('Are you sure you want to cancel this booking?')) {
+        return;
+    }
+
+    try {
+        await axios.patch(`/events/${bookingId}/cancel`);
+        await Promise.all([
+            fetchMyBookings(),
+            fetchBookingsForMonth(currentDate)
+        ]);
+        renderCalendar();
+    } catch (error) {
+        console.error('Error cancelling booking:', error);
+        alert(error.response?.data?.error || 'Error cancelling booking');
+    }
+}
+
+// Initialize when DOM is loaded
+function init() {
+    // Remove any existing modals
+    const existingModals = document.querySelectorAll('.modal');
+    existingModals.forEach(modal => modal.remove());
+
+    // Update user info display
+    updateUserInfo();
+
+    // Check if user is authenticated
+    if (authToken) {
+        // Set default Authorization header
+        axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
+        
+        // Try to initialize calendar
+        initializeCalendar().catch(error => {
+            // If token is invalid, show login form
+            if (error.response?.status === 401) {
+                localStorage.removeItem('authToken');
+                authToken = null;
+                showLoginForm();
+            } else {
+                console.error('Error during initialization:', error);
+                alert('Error initializing the calendar. Please refresh the page.');
+            }
+        });
+    } else {
+        // Show login form if no token
+        setTimeout(showLoginForm, 0); // Ensure this runs after DOM is ready
+    }
+}
+
+// Initialize immediately and when DOM is loaded
+init();
+// Set up event listeners
+document.addEventListener('DOMContentLoaded', () => {
+    init();
+    document.getElementById('logoutButton').addEventListener('click', handleLogout);
 });

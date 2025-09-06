@@ -18,22 +18,19 @@ const resourceSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
-    bookingConfig: {
-        duration: {
-            type: Number,
-            required: true,
-            default: 60,  // Duration in minutes
-            min: 15,
-            max: 480
-        },
-        startTime: {
-            type: String,
-            default: '09:00'
-        },
-        endTime: {
-            type: String,
-            default: '17:00'
-        }
+    slot_length: {
+        type: Number,
+        default: 60,  // Duration in minutes
+        min: 15,
+        max: 480
+    },
+    earliest: {
+        type: String,
+        default: '09:00'
+    },
+    latest: {
+        type: String,
+        default: '17:00'
     }
 }, {
     timestamps: true
