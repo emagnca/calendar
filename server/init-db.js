@@ -27,34 +27,34 @@ const Resource = mongoose.model('Resource', resourceSchema);
 // Initial resources to create
 const initialResources = [
     {
-        resourceId: 'room-1',
-        name: 'Meeting Room 1',
-        description: 'Main conference room',
+        resourceId: 'washing-machine-1',
+        name: { sv: 'Tvättmaskin 1', en: 'Washing machine 1' },
+        description: { sv: 'Den vänstra tvättmaskinen', en: 'The left washing machine' },
         isActive: true,
         bookingConfig: {
-            duration: 60,  // 1 hour slots
+            duration: 60,
             startTime: '09:00',
             endTime: '17:00'
         }
     },
     {
-        resourceId: 'room-2',
-        name: 'Meeting Room 2',
-        description: 'Small meeting room',
+        resourceId: 'washing-machine-2',
+        name: { sv: 'Tvättmaskin 2', en: 'Washing machine 2' },
+        description: { sv: 'Den högra tvättmaskinen', en: 'The right washing machine' },
         isActive: true,
         bookingConfig: {
-            duration: 30,  // 30 minute slots
+            duration: 30,
             startTime: '09:00',
             endTime: '17:00'
         }
     },
     {
-        resourceId: 'projector-1',
-        name: 'Projector',
-        description: 'Portable projector',
+        resourceId: 'stair-cleaning-1',
+        name: { sv: 'Trapprengöring', en: 'Stair cleaning' },
+        description: { sv: 'Städning av trapphuset', en: 'Cleaning of the stairwell' },
         isActive: true,
         bookingConfig: {
-            duration: 120,  // 2 hour slots
+            duration: 120,
             startTime: '10:00',
             endTime: '16:00'
         }

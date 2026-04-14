@@ -6,6 +6,9 @@
     <title>Resursbokning</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="lang/sv.js"></script>
+    <script src="lang/en.js"></script>
+    <script src="i18n.js"></script>
     <script>
         // API Configuration
         axios.defaults.baseURL = '/api';
@@ -23,10 +26,14 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Resursbokning</h1>
+            <h1 data-i18n="app_title">Resursbokning</h1>
             <div class="user-info" id="userInfo" style="display: none;">
                 <span id="userName"></span>
-                <button id="logoutButton" class="logout-button">Logga ut</button>
+                <select id="langPicker" class="lang-picker">
+                    <option value="sv">🇸🇪 Svenska</option>
+                    <option value="en">🇬🇧 English</option>
+                </select>
+                <button id="logoutButton" class="logout-button" data-i18n="logout">Logga ut</button>
             </div>
         </div>
         
@@ -38,13 +45,13 @@
 
         <div class="calendar" id="calendar">
             <div class="calendar-header">
-                <div>Sön</div>
-                <div>Mån</div>
-                <div>Tis</div>
-                <div>Ons</div>
-                <div>Tor</div>
-                <div>Fre</div>
-                <div>Lör</div>
+                <div data-i18n="day_sun">Sön</div>
+                <div data-i18n="day_mon">Mån</div>
+                <div data-i18n="day_tue">Tis</div>
+                <div data-i18n="day_wed">Ons</div>
+                <div data-i18n="day_thu">Tor</div>
+                <div data-i18n="day_fri">Fre</div>
+                <div data-i18n="day_sat">Lör</div>
             </div>
             <div id="calendarDays" class="calendar-days"></div>
         </div>
@@ -52,27 +59,27 @@
         <div id="bookingModal" class="modal">
             <div class="modal-content">
                 <span class="close">&times;</span>
-                <h3>Boka resurs</h3>
+                <h3 data-i18n="step1_title">Välj resurs</h3>
                 <form id="bookingForm">
                     <div class="booking-step" id="step1">
                         <div class="form-group">
-                            <label for="resourceSelect">Välj resurs:</label>
+                            <label for="resourceSelect" data-i18n="select_resource_label">Välj resurs:</label>
                             <select id="resourceSelect" required>
-                                <option value="">Välj en resurs...</option>
+                                <option value="" data-i18n="select_resource_placeholder">Välj en resurs...</option>
                             </select>
                         </div>
                         <div class="resource-info" id="resourceInfo"></div>
-                        <button type="button" id="nextStep" disabled>Next</button>
+                        <button type="button" id="nextStep" disabled data-i18n="btn_next">Nästa</button>
                     </div>
                     
                     <div class="booking-step" id="step2" style="display: none;">
                         <div class="form-group">
-                            <label for="timeSlot">Välj tid:</label>
+                            <label for="timeSlot" data-i18n="select_time_label">Välj tid:</label>
                             <select id="timeSlot" required></select>
                         </div>
                         <div class="button-group">
-                            <button type="button" id="prevStep">Tillbaka</button>
-                            <button type="submit">Boka</button>
+                            <button type="button" id="prevStep" data-i18n="btn_back">Tillbaka</button>
+                            <button type="submit" data-i18n="btn_book">Boka</button>
                         </div>
                     </div>
                 </form>
@@ -94,16 +101,21 @@
     </div>
 
     <div class="resources-section">
-        <h2>Tillgängliga resurser</h2>
+        <h2 data-i18n="resources_title">Tillgängliga resurser</h2>
         <div id="resourceList" class="resource-list"></div>
     </div>
 
     <div class="bookings-section">
-        <h2>Aktuella bokningar</h2>
-        <button id="exportBookings">Exportera bokningar som JSON</button>
+        <h2 data-i18n="bookings_title">Aktuella bokningar</h2>
+        <button id="exportBookings" data-i18n="btn_export">Exportera bokningar som JSON</button>
         <pre id="bookingsDisplay" class="json-display"></pre>
     </div>
 
     <script src="script.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            initI18n();
+        });
+    </script>
 </body>
 </html>

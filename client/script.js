@@ -15,7 +15,7 @@ async function fetchResources() {
         return resources;
     } catch (error) {
         console.error('Error fetching resources:', error);
-        alert('Error loading resources. Please try again.');
+        alert(t('alert_error_loading_resources'));
         return [];
     }
 }
@@ -38,14 +38,14 @@ function updateResourceSelects() {
         // Add a default option
         const defaultOption = document.createElement('option');
         defaultOption.value = '';
-        defaultOption.textContent = 'Select a resource...';
+        defaultOption.textContent = t('select_resource_placeholder');
         select.appendChild(defaultOption);
 
         // Add resources from server
         resources.forEach(resource => {
             const option = document.createElement('option');
             option.value = resource.resourceId;
-            option.textContent = resource.name;
+            option.textContent = localize(resource.name);
             select.appendChild(option);
         });
 
@@ -62,27 +62,41 @@ function renderResourceList() {
     if (!container) return;
 
     if (resources.length === 0) {
-        container.innerHTML = '<p>Inga resurser tillgängliga.</p>';
+        container.innerHTML = `<p>${t('no_resources')}</p>`;
         return;
     }
 
     container.innerHTML = resources.map(r => `
         <div class="resource-card" data-resource-id="${r.resourceId}">
-            <div class="resource-card-name">${r.name}</div>
-            ${r.description ? `<div class="resource-card-desc">${r.description}</div>` : ''}
+            <div class="resource-card-name">${localize(r.name)}</div>
+            ${r.description ? `<div class="resource-card-desc">${localize(r.description)}</div>` : ''}
             <div class="resource-card-meta">${r.earliest} – ${r.latest} &nbsp;|&nbsp; ${r.slot_length} min/slot</div>
-            <div class="resource-card-hint">Klicka för att välja</div>
+            <div class="resource-card-hint">${t('card_click_hint')}</div>
         </div>
     `).join('');
 
     container.querySelectorAll('.resource-card').forEach(card => {
         card.addEventListener('click', () => {
             selectedResourceId = card.dataset.resourceId;
-            container.querySelectorAll('.resource-card').forEach(c => c.classList.remove('selected'));
+            container.querySelectorAll('.resource-card').forEach(c => {
+                c.classList.remove('selected');
+                c.querySelector('.resource-card-hint').textContent = t('card_click_hint');
+            });
             card.classList.add('selected');
+            card.querySelector('.resource-card-hint').textContent = t('card_selected');
             document.getElementById('calendar').scrollIntoView({ behavior: 'smooth' });
         });
     });
+}
+
+// Called by i18n engine when language changes
+function onLanguageChange() {
+    renderResourceList();
+    updateResourceSelects();
+    const months = tMonths();
+    const month = currentDate.getMonth();
+    const year = currentDate.getFullYear();
+    if (monthDisplay) monthDisplay.textContent = `${months[month]} ${year}`;
 }
 
 // Elements
@@ -125,7 +139,7 @@ async function getResourceAvailability(resourceId, date) {
 
 // Cancel a booking
 async function cancelBooking(bookingId, element) {
-    if (!confirm('Är du säker på att du vill avboka denna bokning?')) {
+    if (!confirm(t('confirm_cancel_booking'))) {
         return;
     }
 
@@ -138,7 +152,7 @@ async function cancelBooking(bookingId, element) {
             bookingItem.classList.add('cancelled');
             const statusSpan = bookingItem.querySelector('.status');
             if (statusSpan) {
-                statusSpan.textContent = 'avbruten';
+                statusSpan.textContent = t('btn_cancel_booking');
             }
             element.remove(); // Remove the cancel button
         }
@@ -178,10 +192,10 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
         // Show resource information
         const resourceInfo = `
             <div class="resource-details">
-                <p><strong>${resourceDetails.name}</strong></p>
-                <p>${resourceDetails.description || ''}</p>
-                <p>Bokningstid: ${resourceDetails.bookingConfig.duration} minuter</p>
-                <p>Tillgänglig: ${resourceDetails.bookingConfig.startTime} - ${resourceDetails.bookingConfig.endTime}</p>
+                <p><strong>${localize(resourceDetails.name)}</strong></p>
+                <p>${localize(resourceDetails.description)}</p>
+                <p>${t('resource_duration', resourceDetails.bookingConfig.duration)}</p>
+                <p>${t('resource_available', resourceDetails.bookingConfig.startTime, resourceDetails.bookingConfig.endTime)}</p>
             </div>
         `;
         container.innerHTML = resourceInfo;
@@ -190,22 +204,22 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
         if (timeSlotsContainer) {
             // Day view
             timeSlotsContainer.innerHTML = `
-                <h3>Tillgängliga tider</h3>
+                <h3>${t('available_times_title')}</h3>
                 <div class="time-grid">
                     ${availability.map(slot => `
                         <div class="time-slot ${slot.isAvailable ? 'available' : 'booked'}">
                             <div class="time-label">${slot.time}</div>
                             <div class="booking-container">
                                 ${slot.isAvailable ? 
-                                    `<button onclick="handleInlineBooking('${resourceId}', '${slot.time}')">Boka</button>` : 
+                                    `<button onclick="handleInlineBooking('${resourceId}', '${slot.time}')">${t('btn_book_slot')}</button>` : 
                                     slot.booking ? 
                                         `<span class="booking-info">
                                             <span class="status">${slot.booking.status}</span>
                                             ${slot.booking.userId === currentUser?.id ? 
-                                                `<button onclick="cancelBooking('${slot.booking.id}', this)">Avboka</button>` : 
+                                                `<button onclick="cancelBooking('${slot.booking.id}', this)">${t('btn_cancel_booking')}</button>` : 
                                                 ''}
                                         </span>` : 
-                                        '<span class="booked-label">Bokad</span>'}
+                                        `<span class="booked-label">${t('label_booked')}</span>`}
                             </div>
                         </div>
                     `).join('')}
@@ -222,7 +236,7 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
                     availableSlots.map(slot => 
                         `<option value="${slot.time}">${slot.time}</option>`
                     ).join('') :
-                    '<option value="">No available time slots</option>';
+                    `<option value="">${t('no_slots_today')}</option>`;
                 
                 if (nextButton) {
                     nextButton.disabled = availableSlots.length === 0;
@@ -231,7 +245,7 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
         }
     } catch (error) {
         console.error('Error handling resource selection:', error);
-        container.innerHTML = '<p class="error">Error loading resource availability</p>';
+        container.innerHTML = `<p class="error">${t('alert_error_availability')}</p>`;
         if (timeSlotsContainer) {
             timeSlotsContainer.innerHTML = '';
         } else {
@@ -307,10 +321,7 @@ function renderCalendar() {
     const month = currentDate.getMonth();
 
     // Update month display
-    const months = [
-        'Januari', 'Februari', 'Mars', 'April', 'Maj', 'Juni',
-        'Juli', 'Augusti', 'September', 'Oktober', 'November', 'December'
-    ];
+    const months = tMonths();
     monthDisplay.textContent = `${months[month]} ${year}`;
 
     // Clear previous calendar days
@@ -414,12 +425,12 @@ async function showBookingModal() {
             const step1 = document.createElement('div');
             step1.id = 'step1';
             step1.innerHTML = `
-                <h2>Select Resource</h2>
+                <h2>${t('step1_title')}</h2>
                 <select id="resourceSelect" required>
-                    <option value="">Select a resource...</option>
+                    <option value="">${t('select_resource_placeholder')}</option>
                 </select>
                 <div id="resourceInfo"></div>
-                <button type="button" id="nextStep" disabled>Next</button>
+                <button type="button" id="nextStep" disabled>${t('btn_next')}</button>
             `;
             
             // Step 2: Time Selection
@@ -427,10 +438,10 @@ async function showBookingModal() {
             step2.id = 'step2';
             step2.style.display = 'none';
             step2.innerHTML = `
-                <h2>Select Time</h2>
+                <h2>${t('step2_title')}</h2>
                 <select id="timeSlot" required></select>
-                <button type="button" id="prevStep">Back</button>
-                <button type="submit">Book</button>
+                <button type="button" id="prevStep">${t('btn_back')}</button>
+                <button type="submit">${t('btn_book')}</button>
             `;
             
             form.appendChild(step1);
@@ -480,7 +491,7 @@ async function showBookingModal() {
         }
     } catch (error) {
         console.error('Error preparing booking modal:', error);
-        alert('Error loading resources. Please try again.');
+        alert(t('alert_error_loading_resources'));
     }
 }
 
@@ -502,7 +513,7 @@ async function showDayView() {
 
         // Check if we have resources
         if (resources.length === 0) {
-            alert('No resources available. Please add resources to the system.');
+            alert(t('alert_no_resources'));
             return;
         }
 
@@ -559,7 +570,7 @@ async function showDayView() {
         const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
         
         const dateHeader = document.createElement('h2');
-        dateHeader.textContent = selectedDate.toLocaleDateString('en-US', {
+        dateHeader.textContent = selectedDate.toLocaleDateString(getCurrentLang(), {
             weekday: 'long',
             year: 'numeric',
             month: 'long',
@@ -573,7 +584,7 @@ async function showDayView() {
         
         // Add instruction
         const instruction = document.createElement('p');
-        instruction.textContent = 'First, select a resource to see available time slots:';
+        instruction.textContent = t('select_resource_instruction');
         resourceSection.appendChild(instruction);
 
         // Create resource select
@@ -584,14 +595,14 @@ async function showDayView() {
         // Add default option
         const defaultOption = document.createElement('option');
         defaultOption.value = '';
-        defaultOption.textContent = 'Select a resource...';
+        defaultOption.textContent = t('select_resource_placeholder');
         resourceSelect.appendChild(defaultOption);
 
         // Add resources
         resources.forEach(resource => {
             const option = document.createElement('option');
             option.value = resource.resourceId;
-            option.textContent = resource.name;
+            option.textContent = localize(resource.name);
             resourceSelect.appendChild(option);
         });
 
@@ -640,7 +651,7 @@ async function showDayView() {
         };
     } catch (error) {
         console.error('Error showing day view:', error);
-        alert('Error loading day view. Please try again.');
+        alert(t('alert_error_day_view'));
     }
 }
 
@@ -661,14 +672,14 @@ async function showInlineBookingForm(container, time) {
     // Add default option
     const defaultOption = document.createElement('option');
     defaultOption.value = '';
-    defaultOption.textContent = 'Select a resource...';
+    defaultOption.textContent = t('select_resource_placeholder');
     select.appendChild(defaultOption);
 
     // Add resources
     resources.forEach(resource => {
         const option = document.createElement('option');
         option.value = resource.resourceId;
-        option.textContent = resource.name;
+        option.textContent = localize(resource.name);
         select.appendChild(option);
     });
 
@@ -696,16 +707,16 @@ async function showInlineBookingForm(container, time) {
             
             // Show resource information
             resourceInfoDiv.innerHTML = `
-                <p><strong>${resource.name}</strong></p>
-                <p>${resource.description || ''}</p>
-                <p>Booking duration: ${resource.bookingConfig.duration} minutes</p>
-                <p>Available: ${resource.bookingConfig.startTime} - ${resource.bookingConfig.endTime}</p>
+                <p><strong>${localize(resource.name)}</strong></p>
+                <p>${localize(resource.description)}</p>
+                <p>${t('booking_duration', resource.bookingConfig.duration)}</p>
+                <p>${t('available_hours', resource.bookingConfig.startTime, resource.bookingConfig.endTime)}</p>
             `;
 
             // Show available time slots
             if (availability.some(slot => slot.isAvailable)) {
                 timeSlotDiv.innerHTML = `
-                    <h4>Available Times</h4>
+                    <h4>${t('available_times_inline')}</h4>
                     <div class="time-slots">
                         ${availability
                             .filter(slot => slot.isAvailable)
@@ -719,18 +730,18 @@ async function showInlineBookingForm(container, time) {
                 `;
                 timeSlotDiv.style.display = 'block';
             } else {
-                timeSlotDiv.innerHTML = '<p>No available time slots for this resource today.</p>';
+                timeSlotDiv.innerHTML = `<p>${t('no_slots_today')}</p>`;
                 timeSlotDiv.style.display = 'block';
             }
         } catch (error) {
             console.error('Error getting resource availability:', error);
-            resourceInfoDiv.innerHTML = '<p class="error">Error loading resource information.</p>';
+            resourceInfoDiv.innerHTML = `<p class="error">${t('alert_error_resource_info')}</p>`;
         }
     };
     
     const cancelButton = document.createElement('button');
     cancelButton.type = 'button';
-    cancelButton.textContent = 'Cancel';
+    cancelButton.textContent = t('btn_cancel');
     cancelButton.onclick = () => showDayView(); // Refresh the day view
     
     // Assemble form
@@ -768,13 +779,13 @@ async function handleInlineBooking(resource, time) {
         }
         
         // Show confirmation
-        alert('Booking confirmed!');
+        alert(t('alert_booking_confirmed'));
     } catch (error) {
         if (error.response && error.response.status === 409) {
-            alert('This time slot is already booked!');
+            alert(t('alert_slot_already_booked'));
         } else {
             console.error('Error creating booking:', error);
-            alert('Error creating booking. Please try again.');
+            alert(t('alert_error_booking'));
         }
     }
 }
@@ -811,7 +822,7 @@ async function fetchBookingsForMonth(date) {
         renderCalendar();
     } catch (error) {
         console.error('Error fetching bookings:', error);
-        alert('Error loading bookings. Please try again.');
+        alert(t('alert_error_bookings'));
     }
 }
 
@@ -837,7 +848,7 @@ async function handleBooking(event) {
         bookingForm.reset();
         
         // Show confirmation
-        alert('Booking confirmed!');
+        alert(t('alert_booking_confirmed'));
         
         // Refresh bookings for this date
         await fetchBookingsForMonth(currentDate);
@@ -847,10 +858,10 @@ async function handleBooking(event) {
         renderCalendar();
     } catch (error) {
         if (error.response && error.response.status === 409) {
-            alert('This time slot is already booked!');
+            alert(t('alert_slot_already_booked'));
         } else {
             console.error('Error creating booking:', error);
-            alert('Error creating booking. Please try again.');
+            alert(t('alert_error_booking'));
         }
     }
 }
@@ -1273,20 +1284,20 @@ function showLoginForm() {
     const loginModalContent = document.createElement('div');
     loginModalContent.className = 'modal-content';
     loginModalContent.innerHTML = `
-        <h2>Logga in</h2>
+        <h2>${t('login_title')}</h2>
         <form id="loginForm">
             <div class="form-group">
-                <label for="loginEmail">E-post:</label>
+                <label for="loginEmail">${t('label_email')}</label>
                 <input type="email" id="loginEmail" required>
             </div>
-            <button type="button" id="sendCodeBtn">Skicka kod till e-post</button>
+            <button type="button" id="sendCodeBtn">${t('btn_send_code')}</button>
             <div class="form-group" style="margin-top:12px;">
-                <label for="loginCode">Kod:</label>
-                <input type="text" id="loginCode" maxlength="6" placeholder="6-siffrig kod">
+                <label for="loginCode">${t('label_code')}</label>
+                <input type="text" id="loginCode" maxlength="6" placeholder="${t('placeholder_code')}">
             </div>
-            <button type="submit">Logga in</button>
+            <button type="submit">${t('btn_login')}</button>
         </form>
-        <p>Har du inget konto? <a href="#" id="showRegister">Registrera dig</a></p>
+        <p>${t('text_no_account')} <a href="#" id="showRegister">${t('link_register')}</a></p>
     `;
     loginModal.appendChild(loginModalContent);
     
@@ -1296,21 +1307,19 @@ function showLoginForm() {
     document.getElementById('sendCodeBtn').addEventListener('click', async () => {
         const email = document.getElementById('loginEmail').value;
         if (!email) {
-            alert('Ange din e-postadress först.');
+            alert(t('alert_enter_email'));
             return;
         }
         const btn = document.getElementById('sendCodeBtn');
         btn.disabled = true;
-        btn.textContent = 'Skickar...';
+        btn.textContent = t('btn_sending');
         try {
             await axios.post('/send-login-code', { email });
-            document.getElementById('codeGroup').style.display = '';
-            document.getElementById('loginSubmitBtn').style.display = '';
-            btn.textContent = 'Skicka ny kod';
+            btn.textContent = t('btn_resend_code');
             btn.disabled = false;
         } catch (error) {
-            alert(error.response?.data?.error || 'Kunde inte skicka kod');
-            btn.textContent = 'Skicka kod';
+            alert(error.response?.data?.error || t('alert_send_code_failed'));
+            btn.textContent = t('btn_send_code');
             btn.disabled = false;
         }
     });
@@ -1338,7 +1347,7 @@ function showLoginForm() {
             updateUserInfo();
             initializeCalendar();
         } catch (error) {
-            alert(error.response?.data?.error || 'Inloggning misslyckades');
+            alert(error.response?.data?.error || t('alert_login_failed'));
         }
     });
     
@@ -1366,23 +1375,23 @@ function showRegisterForm() {
     const registerModalContent = document.createElement('div');
     registerModalContent.className = 'modal-content';
     registerModalContent.innerHTML = `
-        <h2>Registrera dig</h2>
+        <h2>${t('register_title')}</h2>
         <form id="registerForm">
             <div class="form-group">
-                <label for="registerName">Namn:</label>
+                <label for="registerName">${t('label_name')}</label>
                 <input type="text" id="registerName" required>
             </div>
             <div class="form-group">
-                <label for="registerEmail">E-post:</label>
+                <label for="registerEmail">${t('label_email')}</label>
                 <input type="email" id="registerEmail" required>
             </div>
             <div class="form-group">
-                <label for="registerPassword">Lösenord:</label>
+                <label for="registerPassword">${t('label_password')}</label>
                 <input type="password" id="registerPassword" required>
             </div>
-            <button type="submit">Registrera</button>
+            <button type="submit">${t('btn_register')}</button>
         </form>
-        <p>Har du redan ett konto? <a href="#" id="showLogin">Logga in</a></p>
+        <p>${t('text_have_account')} <a href="#" id="showLogin">${t('link_login')}</a></p>
     `;
     registerModal.appendChild(registerModalContent);
     
@@ -1412,7 +1421,7 @@ function showRegisterForm() {
             updateUserInfo();
             initializeCalendar();
         } catch (error) {
-            alert(error.response?.data?.error || 'Registration failed');
+            alert(error.response?.data?.error || t('alert_registration_failed'));
         }
     });
     
@@ -1461,7 +1470,7 @@ async function initializeCalendar() {
         await fetchResources();
         renderResourceList();
         if (resources.length === 0) {
-            alert('Inga resurser tillgängliga. Lägg till resurser i systemet.');
+            alert(t('alert_no_resources'));
         }
         await fetchBookingsForMonth(currentDate);
         await fetchMyBookings(); // Fetch user's bookings
@@ -1469,7 +1478,7 @@ async function initializeCalendar() {
         console.log('Calendar initialized successfully');
     } catch (error) {
         console.error('Error during initialization:', error);
-        alert('Error initializing the calendar. Please refresh the page.');
+        alert(t('alert_error_init'));
     }
 }
 
@@ -1490,21 +1499,21 @@ function displayMyBookings(bookings) {
     if (!myBookingsDiv) return;
 
     if (bookings.length === 0) {
-        myBookingsDiv.innerHTML = '<p>Du har inga kommande bokningar.</p>';
+        myBookingsDiv.innerHTML = `<p>${t('no_upcoming_bookings')}</p>`;
         return;
     }
 
     const bookingsList = bookings.map(booking => {
-        const date = new Date(booking.date).toLocaleDateString();
+        const date = new Date(booking.date).toLocaleDateString(getCurrentLang());
         return `
             <div class="booking-item ${booking.status}">
                 <div class="booking-info">
                     <strong>${booking.resourceName}</strong>
-                    <span>${date} at ${booking.time}</span>
+                    <span>${date} – ${booking.time}</span>
                     <span class="status">${booking.status}</span>
                 </div>
                 ${booking.status === 'confirmed' ? `
-                    <button onclick="cancelBooking('${booking._id}')">Cancel</button>
+                    <button onclick="cancelBooking('${booking._id}')">${t('btn_cancel_booking')}</button>
                 ` : ''}
             </div>
         `;
@@ -1515,7 +1524,7 @@ function displayMyBookings(bookings) {
 
 // Cancel a booking
 async function cancelBooking(bookingId) {
-    if (!confirm('Are you sure you want to cancel this booking?')) {
+    if (!confirm(t('confirm_cancel_booking'))) {
         return;
     }
 
@@ -1555,7 +1564,7 @@ function init() {
                 showLoginForm();
             } else {
                 console.error('Error during initialization:', error);
-                alert('Error initializing the calendar. Please refresh the page.');
+                alert(t('alert_error_init'));
             }
         });
     } else {

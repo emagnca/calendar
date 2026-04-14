@@ -7,11 +7,11 @@ const resourceSchema = new mongoose.Schema({
         unique: true
     },
     name: {
-        type: String,
+        type: mongoose.Schema.Types.Mixed,
         required: true
     },
     description: {
-        type: String,
+        type: mongoose.Schema.Types.Mixed,
         default: ''
     },
     isActive: {

@@ -504,6 +504,15 @@ button[type="submit"]:hover {
     align-items: center;
 }
 
+.lang-picker {
+    padding: 4px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    background: white;
+}
+
 .resources-section {
     max-width: 1200px;
     margin: 30px auto 0;
@@ -580,6 +589,3 @@ button[type="submit"]:hover {
     font-weight: 500;
 }
 
-.resource-card.selected .resource-card-hint::before {
-    content: '✓ Vald — ';
-}
