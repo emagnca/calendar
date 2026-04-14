@@ -2,9 +2,11 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const path = require('path');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { logMethodEntry, logMethodExit } = require('./utils/logger');
+const { sendEmail } = require('./utils/messenger');
 
 const Resource = require('./models/Resource');
 const Event = require('./models/Event');
@@ -23,6 +25,9 @@ app.use(express.json());
 
 // Mount API router
 app.use('/api', apiRouter);
+
+// Serve client static files
+app.use(express.static(path.join(__dirname, '../client')));
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/booking-calendar', {
@@ -52,7 +57,7 @@ apiRouter.post('/register', async (req, res) => {
         
         // Generate token
         const token = jwt.sign(
-            { userId: user._id, email: user.email },
+            { _id: user._id, email: user.email },
             process.env.JWT_SECRET,
             { expiresIn: '24h' }
         );
@@ -72,28 +77,59 @@ apiRouter.post('/register', async (req, res) => {
     }
 });
 
+apiRouter.post('/send-login-code', async (req, res) => {
+    const methodName = 'send-login-code';
+    logMethodEntry(methodName, { body: req.body });
+
+    try {
+        const { email } = req.body;
+
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ error: 'No account found with that email' });
+        }
+
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        user.loginCode = code;
+        user.loginCodeExpiry = new Date(Date.now() + 10 * 60 * 1000);
+        await user.save();
+
+        await sendEmail(email, `Din inloggningskod är: <strong>${code}</strong>`, 'Din inloggningskod');
+
+        logMethodExit(methodName, { userId: user._id });
+        res.json({ message: 'Code sent' });
+    } catch (error) {
+        console.error(`Error in ${methodName}:`, error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 apiRouter.post('/login', async (req, res) => {
     const methodName = 'login';
     logMethodEntry(methodName, { body: req.body });
     
     try {
-        const { email, password } = req.body;
+        const { email, code } = req.body;
         
-        // Find user
         const user = await User.findOne({ email });
         if (!user) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
-        
-        // Check password
-        const isMatch = await user.comparePassword(password);
-        if (!isMatch) {
-            return res.status(401).json({ error: 'Invalid credentials' });
+
+        if (!user.loginCode || user.loginCode !== code) {
+            return res.status(401).json({ error: 'Invalid or expired code' });
         }
+
+        if (!user.loginCodeExpiry || user.loginCodeExpiry < new Date()) {
+            return res.status(401).json({ error: 'Code has expired' });
+        }
+
+        user.loginCode = undefined;
+        user.loginCodeExpiry = undefined;
+        await user.save();
         
-        // Generate token
         const token = jwt.sign(
-            { userId: user._id, email: user.email },
+            { _id: user._id, email: user.email },
             process.env.JWT_SECRET,
             { expiresIn: '24h' }
         );
@@ -128,7 +164,7 @@ apiRouter.get('/resources', auth, async (req, res) => {
     }
 });
 
-apiRouter.post('/resources', async (req, res) => {
+apiRouter.post('/resources', auth, async (req, res) => {
     const methodName = 'createResource';
     logMethodEntry(methodName, { body: req.body });
     
@@ -204,7 +240,7 @@ apiRouter.post('/events', auth, async (req, res) => {
         const event = new Event({
             resourceId: req.body.resourceId,
             resourceName: resource.name, // Store resource name for easier retrieval
-            userId: req.user.userId,
+            userId: req.user._id || req.user.userId, // Support both formats
             userEmail: req.user.email,
             date: new Date(req.body.date),
             time: req.body.time,
@@ -235,7 +271,8 @@ apiRouter.patch('/events/:id/cancel', auth, async (req, res) => {
         }
 
         // Check if the user owns this booking
-        if (event.userId.toString() !== req.user.userId) {
+        const userIdFromToken = req.user._id || req.user.userId;
+if (event.userId.toString() !== userIdFromToken.toString()) {
             return res.status(403).json({ error: 'You can only cancel your own bookings' });
         }
 
@@ -256,7 +293,7 @@ apiRouter.get('/events/my-bookings', auth, async (req, res) => {
     
     try {
         const events = await Event.find({ 
-            userId: req.user.userId,
+            userId: req.user._id || req.user.userId,
             date: { $gte: new Date() } // Only future bookings
         }).sort({ date: 1, time: 1 }); // Sort by date and time
         

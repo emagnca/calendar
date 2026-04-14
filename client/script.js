@@ -1,5 +1,6 @@
 let currentDate = new Date();
 let selectedDate = null;
+let selectedResourceId = null;
 let resources = []; // Store resources from API
 let bookings = new Map(); // Store bookings: date -> [{resource, time}]
 
@@ -55,6 +56,35 @@ function updateResourceSelects() {
     });
 }
 
+// Render resource list on the main page
+function renderResourceList() {
+    const container = document.getElementById('resourceList');
+    if (!container) return;
+
+    if (resources.length === 0) {
+        container.innerHTML = '<p>Inga resurser tillgängliga.</p>';
+        return;
+    }
+
+    container.innerHTML = resources.map(r => `
+        <div class="resource-card" data-resource-id="${r.resourceId}">
+            <div class="resource-card-name">${r.name}</div>
+            ${r.description ? `<div class="resource-card-desc">${r.description}</div>` : ''}
+            <div class="resource-card-meta">${r.earliest} – ${r.latest} &nbsp;|&nbsp; ${r.slot_length} min/slot</div>
+            <div class="resource-card-hint">Klicka för att välja</div>
+        </div>
+    `).join('');
+
+    container.querySelectorAll('.resource-card').forEach(card => {
+        card.addEventListener('click', () => {
+            selectedResourceId = card.dataset.resourceId;
+            container.querySelectorAll('.resource-card').forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+            document.getElementById('calendar').scrollIntoView({ behavior: 'smooth' });
+        });
+    });
+}
+
 // Elements
 const calendar = document.getElementById('calendar');
 const monthDisplay = document.getElementById('monthDisplay');
@@ -73,21 +103,21 @@ const timeSlots = [
 // Get availability for a specific resource and date
 async function getResourceAvailability(resourceId, date) {
     try {
-        console.log('Fetching availability for:', { resourceId, date });
+        console.log('Hämtar tillgänglighet för:', { resourceId, date });
         const response = await axios.get('/availability', {
             params: {
                 date: date,
                 resourceId: resourceId
             }
         });
-        console.log('Availability response:', response.data);
+        console.log('Tillgänglighetsrespons:', response.data);
         return response.data;
     } catch (error) {
-        console.error('Error getting availability:', error);
-        console.error('Error details:', {
+        console.error('Fel vid hämtning av tillgänglighet:', error);
+        console.error('Feldetaljer:', {
             status: error.response?.status,
             data: error.response?.data,
-            message: error.message
+            meddelande: error.message
         });
         throw error;
     }
@@ -95,7 +125,7 @@ async function getResourceAvailability(resourceId, date) {
 
 // Cancel a booking
 async function cancelBooking(bookingId, element) {
-    if (!confirm('Are you sure you want to cancel this booking?')) {
+    if (!confirm('Är du säker på att du vill avboka denna bokning?')) {
         return;
     }
 
@@ -108,7 +138,7 @@ async function cancelBooking(bookingId, element) {
             bookingItem.classList.add('cancelled');
             const statusSpan = bookingItem.querySelector('.status');
             if (statusSpan) {
-                statusSpan.textContent = 'cancelled';
+                statusSpan.textContent = 'avbruten';
             }
             element.remove(); // Remove the cancel button
         }
@@ -117,22 +147,22 @@ async function cancelBooking(bookingId, element) {
         await fetchBookingsForMonth(currentDate);
         renderCalendar();
     } catch (error) {
-        console.error('Error cancelling booking:', error);
-        alert(error.response?.data?.error || 'Error cancelling booking');
+        console.error('Fel vid avbokning av bokning:', error);
+        alert(error.response?.data?.error || 'Fel vid avbokning av bokning');
     }
 }
 
 // Handle resource selection
 async function handleResourceSelection(resourceId, container, timeSlotsContainer) {
-    console.log('Handling resource selection:', { resourceId, selectedDate });
+    console.log('Hanterar resursval:', { resourceId, selectedDate });
     const resource = resources.find(r => r.resourceId === resourceId);
     const currentUserId = currentUser?.id;
     if (!resource) {
-        console.error('Resource not found:', resourceId);
+        console.error('Resursen hittades inte:', resourceId);
         return;
     }
     if (!selectedDate) {
-        console.error('No date selected');
+        console.error('Inget datum valt');
         return;
     }
     if (!container) {
@@ -150,8 +180,8 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
             <div class="resource-details">
                 <p><strong>${resourceDetails.name}</strong></p>
                 <p>${resourceDetails.description || ''}</p>
-                <p>Booking duration: ${resourceDetails.bookingConfig.duration} minutes</p>
-                <p>Available: ${resourceDetails.bookingConfig.startTime} - ${resourceDetails.bookingConfig.endTime}</p>
+                <p>Bokningstid: ${resourceDetails.bookingConfig.duration} minuter</p>
+                <p>Tillgänglig: ${resourceDetails.bookingConfig.startTime} - ${resourceDetails.bookingConfig.endTime}</p>
             </div>
         `;
         container.innerHTML = resourceInfo;
@@ -160,22 +190,22 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
         if (timeSlotsContainer) {
             // Day view
             timeSlotsContainer.innerHTML = `
-                <h3>Available Time Slots</h3>
+                <h3>Tillgängliga tider</h3>
                 <div class="time-grid">
                     ${availability.map(slot => `
                         <div class="time-slot ${slot.isAvailable ? 'available' : 'booked'}">
                             <div class="time-label">${slot.time}</div>
                             <div class="booking-container">
                                 ${slot.isAvailable ? 
-                                    `<button onclick="handleInlineBooking('${resourceId}', '${slot.time}')">Book</button>` : 
+                                    `<button onclick="handleInlineBooking('${resourceId}', '${slot.time}')">Boka</button>` : 
                                     slot.booking ? 
                                         `<span class="booking-info">
                                             <span class="status">${slot.booking.status}</span>
                                             ${slot.booking.userId === currentUser?.id ? 
-                                                `<button onclick="cancelBooking('${slot.booking.id}', this)">Cancel</button>` : 
+                                                `<button onclick="cancelBooking('${slot.booking.id}', this)">Avboka</button>` : 
                                                 ''}
                                         </span>` : 
-                                        '<span class="booked-label">Booked</span>'}
+                                        '<span class="booked-label">Bokad</span>'}
                             </div>
                         </div>
                     `).join('')}
@@ -213,13 +243,19 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
 
 // Initialize calendar
 function initCalendar() {
-    document.getElementById('prevMonth').addEventListener('click', () => {
-        currentDate.setMonth(currentDate.getMonth() - 1);
+    document.getElementById('prevMonth').addEventListener('click', async () => {
+        const newDate = new Date(currentDate);
+        newDate.setMonth(newDate.getMonth() - 1);
+        currentDate = newDate;
+        await fetchBookingsForMonth(currentDate);
         renderCalendar();
     });
 
-    document.getElementById('nextMonth').addEventListener('click', () => {
-        currentDate.setMonth(currentDate.getMonth() + 1);
+    document.getElementById('nextMonth').addEventListener('click', async () => {
+        const newDate = new Date(currentDate);
+        newDate.setMonth(newDate.getMonth() + 1);
+        currentDate = newDate;
+        await fetchBookingsForMonth(currentDate);
         renderCalendar();
     });
 
@@ -271,9 +307,11 @@ function renderCalendar() {
     const month = currentDate.getMonth();
 
     // Update month display
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'];
-    monthDisplay.textContent = `${monthNames[month]} ${year}`;
+    const months = [
+        'Januari', 'Februari', 'Mars', 'April', 'Maj', 'Juni',
+        'Juli', 'Augusti', 'September', 'Oktober', 'November', 'December'
+    ];
+    monthDisplay.textContent = `${months[month]} ${year}`;
 
     // Clear previous calendar days
     const calendarDays = document.getElementById('calendarDays');
@@ -430,6 +468,16 @@ async function showBookingModal() {
         await fetchResources(); // Refresh resources before showing modal
         resetBookingForm(); // Reset form to first step
         bookingModal.style.display = 'block';
+
+        // Pre-select resource if one was chosen from the resource list
+        if (selectedResourceId) {
+            const select = document.getElementById('resourceSelect');
+            if (select) {
+                select.value = selectedResourceId;
+                select.dispatchEvent(new Event('change'));
+                document.getElementById('nextStep').disabled = false;
+            }
+        }
     } catch (error) {
         console.error('Error preparing booking modal:', error);
         alert('Error loading resources. Please try again.');
@@ -572,6 +620,12 @@ async function showDayView() {
             }
             handleResourceSelection(resourceId, resourceInfoDiv, timeSlotsContainer);
         };
+
+        // Pre-select resource if one was chosen from the resource list
+        if (selectedResourceId) {
+            resourceSelect.value = selectedResourceId;
+            resourceSelect.dispatchEvent(new Event('change'));
+        }
 
         // Close button handler
         closeDayViewBtn.onclick = () => {
@@ -1216,35 +1270,59 @@ function showLoginForm() {
     loginModal.style.display = 'block';
     loginModal.style.zIndex = '1000';
     
-    loginModal.innerHTML = `
-        <div class="modal-content">
-            <h2>Login</h2>
-
-            <form id="loginForm">
-                <div class="form-group">
-                    <label for="email">Email:</label>
-                    <input type="email" id="email" required>
-                </div>
-                <div class="form-group">
-                    <label for="password">Password:</label>
-                    <input type="password" id="password" required>
-                </div>
-                <button type="submit">Login</button>
-                <button type="button" id="showRegister">Register</button>
-            </form>
-        </div>
+    const loginModalContent = document.createElement('div');
+    loginModalContent.className = 'modal-content';
+    loginModalContent.innerHTML = `
+        <h2>Logga in</h2>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="loginEmail">E-post:</label>
+                <input type="email" id="loginEmail" required>
+            </div>
+            <button type="button" id="sendCodeBtn">Skicka kod till e-post</button>
+            <div class="form-group" style="margin-top:12px;">
+                <label for="loginCode">Kod:</label>
+                <input type="text" id="loginCode" maxlength="6" placeholder="6-siffrig kod">
+            </div>
+            <button type="submit">Logga in</button>
+        </form>
+        <p>Har du inget konto? <a href="#" id="showRegister">Registrera dig</a></p>
     `;
+    loginModal.appendChild(loginModalContent);
     
     document.body.appendChild(loginModal);
-    
+
+    // Handle send code
+    document.getElementById('sendCodeBtn').addEventListener('click', async () => {
+        const email = document.getElementById('loginEmail').value;
+        if (!email) {
+            alert('Ange din e-postadress först.');
+            return;
+        }
+        const btn = document.getElementById('sendCodeBtn');
+        btn.disabled = true;
+        btn.textContent = 'Skickar...';
+        try {
+            await axios.post('/send-login-code', { email });
+            document.getElementById('codeGroup').style.display = '';
+            document.getElementById('loginSubmitBtn').style.display = '';
+            btn.textContent = 'Skicka ny kod';
+            btn.disabled = false;
+        } catch (error) {
+            alert(error.response?.data?.error || 'Kunde inte skicka kod');
+            btn.textContent = 'Skicka kod';
+            btn.disabled = false;
+        }
+    });
+
     // Handle login
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
+        const email = document.getElementById('loginEmail').value;
+        const code = document.getElementById('loginCode').value;
         
         try {
-            const response = await axios.post('/login', { email, password });
+            const response = await axios.post('/login', { email, code });
             authToken = response.data.token;
             currentUser = response.data.user;
             
@@ -1260,7 +1338,7 @@ function showLoginForm() {
             updateUserInfo();
             initializeCalendar();
         } catch (error) {
-            alert(error.response?.data?.error || 'Login failed');
+            alert(error.response?.data?.error || 'Inloggning misslyckades');
         }
     });
     
@@ -1285,36 +1363,37 @@ function showRegisterForm() {
     registerModal.style.display = 'block';
     registerModal.style.zIndex = '1000';
     
-    registerModal.innerHTML = `
-        <div class="modal-content">
-            <h2>Register</h2>
-            <form id="registerForm">
-                <div class="form-group">
-                    <label for="name">Name:</label>
-                    <input type="text" id="name" required>
-                </div>
-                <div class="form-group">
-                    <label for="email">Email:</label>
-                    <input type="email" id="email" required>
-                </div>
-                <div class="form-group">
-                    <label for="password">Password:</label>
-                    <input type="password" id="password" required>
-                </div>
-                <button type="submit">Register</button>
-                <button type="button" id="showLogin">Back to Login</button>
-            </form>
-        </div>
+    const registerModalContent = document.createElement('div');
+    registerModalContent.className = 'modal-content';
+    registerModalContent.innerHTML = `
+        <h2>Registrera dig</h2>
+        <form id="registerForm">
+            <div class="form-group">
+                <label for="registerName">Namn:</label>
+                <input type="text" id="registerName" required>
+            </div>
+            <div class="form-group">
+                <label for="registerEmail">E-post:</label>
+                <input type="email" id="registerEmail" required>
+            </div>
+            <div class="form-group">
+                <label for="registerPassword">Lösenord:</label>
+                <input type="password" id="registerPassword" required>
+            </div>
+            <button type="submit">Registrera</button>
+        </form>
+        <p>Har du redan ett konto? <a href="#" id="showLogin">Logga in</a></p>
     `;
+    registerModal.appendChild(registerModalContent);
     
     document.body.appendChild(registerModal);
     
     // Handle registration
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const name = document.getElementById('name').value;
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
+        const name = document.getElementById('registerName').value;
+        const email = document.getElementById('registerEmail').value;
+        const password = document.getElementById('registerPassword').value;
         
         try {
             const response = await axios.post('/register', { name, email, password });
@@ -1380,8 +1459,9 @@ async function initializeCalendar() {
     try {
         console.log('Initializing calendar...', { currentUser });
         await fetchResources();
+        renderResourceList();
         if (resources.length === 0) {
-            alert('No resources available. Please add some resources to the system.');
+            alert('Inga resurser tillgängliga. Lägg till resurser i systemet.');
         }
         await fetchBookingsForMonth(currentDate);
         await fetchMyBookings(); // Fetch user's bookings
@@ -1410,7 +1490,7 @@ function displayMyBookings(bookings) {
     if (!myBookingsDiv) return;
 
     if (bookings.length === 0) {
-        myBookingsDiv.innerHTML = '<p>You have no upcoming bookings.</p>';
+        myBookingsDiv.innerHTML = '<p>Du har inga kommande bokningar.</p>';
         return;
     }
 

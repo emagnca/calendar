@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Resource Booking Calendar</title>
+    <title>Resursbokning</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script>
         // API Configuration
-        const API_BASE_URL = 'http://localhost:3000/api';
-        axios.defaults.baseURL = API_BASE_URL;
+        axios.defaults.baseURL = '/api';
 
         // Handle API errors globally
         axios.interceptors.response.use(
@@ -24,10 +23,10 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Resource Booking Calendar</h1>
+            <h1>Resursbokning</h1>
             <div class="user-info" id="userInfo" style="display: none;">
                 <span id="userName"></span>
-                <button id="logoutButton" class="logout-button">Logout</button>
+                <button id="logoutButton" class="logout-button">Logga ut</button>
             </div>
         </div>
         
@@ -39,13 +38,13 @@
 
         <div class="calendar" id="calendar">
             <div class="calendar-header">
-                <div>Sun</div>
-                <div>Mon</div>
-                <div>Tue</div>
-                <div>Wed</div>
-                <div>Thu</div>
-                <div>Fri</div>
-                <div>Sat</div>
+                <div>Sön</div>
+                <div>Mån</div>
+                <div>Tis</div>
+                <div>Ons</div>
+                <div>Tor</div>
+                <div>Fre</div>
+                <div>Lör</div>
             </div>
             <div id="calendarDays" class="calendar-days"></div>
         </div>
@@ -53,13 +52,13 @@
         <div id="bookingModal" class="modal">
             <div class="modal-content">
                 <span class="close">&times;</span>
-                <h3>Book Resource</h3>
+                <h3>Boka resurs</h3>
                 <form id="bookingForm">
                     <div class="booking-step" id="step1">
                         <div class="form-group">
-                            <label for="resourceSelect">Select Resource:</label>
+                            <label for="resourceSelect">Välj resurs:</label>
                             <select id="resourceSelect" required>
-                                <option value="">Select a resource...</option>
+                                <option value="">Välj en resurs...</option>
                             </select>
                         </div>
                         <div class="resource-info" id="resourceInfo"></div>
@@ -68,12 +67,12 @@
                     
                     <div class="booking-step" id="step2" style="display: none;">
                         <div class="form-group">
-                            <label for="timeSlot">Select Time:</label>
+                            <label for="timeSlot">Välj tid:</label>
                             <select id="timeSlot" required></select>
                         </div>
                         <div class="button-group">
-                            <button type="button" id="prevStep">Back</button>
-                            <button type="submit">Book</button>
+                            <button type="button" id="prevStep">Tillbaka</button>
+                            <button type="submit">Boka</button>
                         </div>
                     </div>
                 </form>
@@ -94,9 +93,14 @@
         </div>
     </div>
 
+    <div class="resources-section">
+        <h2>Tillgängliga resurser</h2>
+        <div id="resourceList" class="resource-list"></div>
+    </div>
+
     <div class="bookings-section">
-        <h2>Current Bookings</h2>
-        <button id="exportBookings">Export Bookings as JSON</button>
+        <h2>Aktuella bokningar</h2>
+        <button id="exportBookings">Exportera bokningar som JSON</button>
         <pre id="bookingsDisplay" class="json-display"></pre>
     </div>
 

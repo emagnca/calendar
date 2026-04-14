@@ -103,7 +103,13 @@ const eventSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Add a unique compound index to prevent double bookings
-eventSchema.index({ resourceId: 1, date: 1, time: 1 }, { unique: true });
+// Add a partial unique compound index to prevent double bookings (only for confirmed bookings)
+eventSchema.index(
+    { resourceId: 1, date: 1, time: 1 },
+    { 
+        unique: true,
+        partialFilterExpression: { status: 'confirmed' }
+    }
+);
 
 module.exports = mongoose.model('Event', eventSchema);
