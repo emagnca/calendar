@@ -23,6 +23,12 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    group: {
+        type: String,
+        trim: true,
+        lowercase: true,
+        default: null
+    },
     isActive: {
         type: Boolean,
         default: true

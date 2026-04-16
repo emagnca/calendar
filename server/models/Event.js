@@ -60,7 +60,7 @@ const eventSchema = new mongoose.Schema({
         required: true
     },
     resourceName: {
-        type: String,
+        type: mongoose.Schema.Types.Mixed,
         required: true
     },
     userId: {
@@ -90,6 +90,12 @@ const eventSchema = new mongoose.Schema({
             },
             message: props => props.reason || 'Invalid time slot'
         }
+    },
+    group: {
+        type: String,
+        trim: true,
+        lowercase: true,
+        default: null
     },
     status: {
         type: String,

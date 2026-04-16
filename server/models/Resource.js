@@ -18,6 +18,12 @@ const resourceSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    group: {
+        type: String,
+        trim: true,
+        lowercase: true,
+        default: null
+    },
     slot_length: {
         type: Number,
         default: 60,  // Duration in minutes
