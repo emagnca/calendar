@@ -21,6 +21,7 @@ const DEFAULT_USER = {
     email: 'admin@brf8.se',
     name:  'Admin',
     group: GROUP_NAME,
+    role:  'admin',
     // password: 'changeme'   // uncomment to set an initial password
 };
 

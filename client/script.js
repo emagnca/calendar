@@ -7,6 +7,11 @@ let bookings = new Map(); // Store bookings: date -> [{resource, time}]
 // Read group from URL path: /<groupname>
 const currentGroup = window.location.pathname.split('/').filter(Boolean)[0] || null;
 
+// Format a Date as YYYY-MM-DD in local time (avoids UTC timezone shift)
+function localDateStr(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 // Append group to any params object
 function groupParam(params = {}) {
     return currentGroup ? { ...params, group: currentGroup } : params;
@@ -145,6 +150,14 @@ async function getResourceAvailability(resourceId, date) {
     }
 }
 
+// Returns true if the current user is allowed to cancel the given booking
+function canCancelBooking(booking) {
+    const role = currentUser?.role || 'user';
+    if (role === 'superadmin') return true;
+    if (role === 'admin') return true;  // group scoping enforced server-side
+    return booking.userId === currentUser?.id;
+}
+
 // Cancel a booking
 async function cancelBooking(bookingId, element) {
     if (!confirm(t('confirm_cancel_booking'))) {
@@ -152,21 +165,36 @@ async function cancelBooking(bookingId, element) {
     }
 
     try {
-        await axios.patch(`/events/${bookingId}/cancel`);
-        
-        // Update UI
-        const bookingItem = element.closest('.booking-item');
-        if (bookingItem) {
-            bookingItem.classList.add('cancelled');
-            const statusSpan = bookingItem.querySelector('.status');
-            if (statusSpan) {
-                statusSpan.textContent = t('btn_cancel_booking');
+        await axios.patch(`/events/${bookingId}/cancel`, {}, { params: groupParam() });
+
+        // Optimistic UI update
+        if (element) {
+            // Case 1: button is inside a .time-slot (day view popup)
+            const timeSlot = element.closest('.time-slot');
+            if (timeSlot) {
+                const time = timeSlot.querySelector('.time-label')?.textContent?.trim();
+                const resourceId = document.getElementById('dayViewResourceSelect')?.value;
+                timeSlot.classList.remove('booked', 'cancelled');
+                timeSlot.classList.add('available');
+                const container = timeSlot.querySelector('.booking-container');
+                if (container) {
+                    container.innerHTML = resourceId && time
+                        ? `<button onclick="handleInlineBooking('${resourceId}', '${time}')">${t('btn_book_slot')}</button>`
+                        : '';
+                }
             }
-            element.remove(); // Remove the cancel button
+            // Case 2: button is inside a .booking-item (my bookings section)
+            const bookingItem = element.closest('.booking-item');
+            if (bookingItem) {
+                bookingItem.remove();
+            }
         }
 
-        // Refresh calendar view
-        await fetchBookingsForMonth(currentDate);
+        // Background refresh of calendar chips and my-bookings list
+        await Promise.all([
+            fetchBookingsForMonth(currentDate),
+            fetchMyBookings().catch(() => {})
+        ]);
         renderCalendar();
     } catch (error) {
         console.error('Fel vid avbokning av bokning:', error);
@@ -194,7 +222,7 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
 
     try {
         // Get availability from server
-        const dateStr = selectedDate.toISOString().split('T')[0];
+        const dateStr = localDateStr(selectedDate);
         const { resource: resourceDetails, availability } = await getResourceAvailability(resourceId, dateStr);
 
         // Determine which slots are in the past (only relevant when selected date is today)
@@ -234,7 +262,7 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
                                 : slot.booking
                                     ? `<span class="booking-info">
                                         <span class="status">${slot.booking.status}</span>
-                                        ${slot.booking.userId === currentUser?.id
+                                        ${canCancelBooking(slot.booking) && slot.booking.status === 'confirmed'
                                             ? `<button onclick="cancelBooking('${slot.booking.id}', this)">${t('btn_cancel_booking')}</button>`
                                             : ''}
                                        </span>`
@@ -398,8 +426,7 @@ function createDayElement(day, isOtherMonth, isToday = false, isPast = false) {
 
     // Booking chips for current-month days
     if (!isOtherMonth) {
-        const dateStr = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-            .toISOString().split('T')[0];
+        const dateStr = localDateStr(new Date(currentDate.getFullYear(), currentDate.getMonth(), day));
         const dayBookings = bookings.get(dateStr);
 
         if (dayBookings && dayBookings.length > 0) {
@@ -608,7 +635,7 @@ async function showDayView() {
         dayViewContent.innerHTML = '';
 
         // Add date header
-        const dateStr = selectedDate.toISOString().split('T')[0];
+        const dateStr = localDateStr(selectedDate);
         const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
         
         const dateHeader = document.createElement('h2');
@@ -745,7 +772,7 @@ async function showInlineBookingForm(container, time) {
         }
 
         try {
-            const { resource, availability } = await getResourceAvailability(resourceId, selectedDate.toISOString().split('T')[0]);
+            const { resource, availability } = await getResourceAvailability(resourceId, localDateStr(selectedDate));
             
             // Show resource information
             resourceInfoDiv.innerHTML = `
@@ -802,7 +829,7 @@ async function handleInlineBooking(resource, time) {
         // Create booking through API
         await axios.post('/events', {
             resourceId: resource,
-            date: selectedDate.toISOString().split('T')[0],
+            date: localDateStr(selectedDate),
             time: time
         }, { params: groupParam() });
 
@@ -840,8 +867,8 @@ async function fetchBookingsForMonth(date) {
     try {
         const response = await axios.get('/events', {
             params: groupParam({
-                startDate: startDate.toISOString().split('T')[0],
-                endDate: endDate.toISOString().split('T')[0]
+                startDate: localDateStr(startDate),
+                endDate: localDateStr(endDate)
             })
         });
         
@@ -850,7 +877,7 @@ async function fetchBookingsForMonth(date) {
         
         // Group bookings by date
         response.data.forEach(booking => {
-            const dateStr = new Date(booking.date).toISOString().split('T')[0];
+            const dateStr = localDateStr(new Date(booking.date));
             if (!bookings.has(dateStr)) {
                 bookings.set(dateStr, []);
             }
@@ -881,7 +908,7 @@ async function handleBooking(event) {
         // Create booking through API
         await axios.post('/events', {
             resourceId: resource,
-            date: selectedDate.toISOString().split('T')[0],
+            date: localDateStr(selectedDate),
             time: time
         }, { params: groupParam() });
 
@@ -1569,7 +1596,7 @@ function displayMyBookings(bookings) {
                     <span class="status">${booking.status}</span>
                 </div>
                 ${booking.status === 'confirmed' ? `
-                    <button onclick="cancelBooking('${booking._id}')">${t('btn_cancel_booking')}</button>
+                    <button onclick="cancelBooking('${booking._id}', this)">${t('btn_cancel_booking')}</button>
                 ` : ''}
             </div>
         `;
@@ -1578,24 +1605,6 @@ function displayMyBookings(bookings) {
     myBookingsDiv.innerHTML = bookingsList;
 }
 
-// Cancel a booking
-async function cancelBooking(bookingId) {
-    if (!confirm(t('confirm_cancel_booking'))) {
-        return;
-    }
-
-    try {
-        await axios.patch(`/events/${bookingId}/cancel`, {}, { params: groupParam() });
-        await Promise.all([
-            fetchMyBookings(),
-            fetchBookingsForMonth(currentDate)
-        ]);
-        renderCalendar();
-    } catch (error) {
-        console.error('Error cancelling booking:', error);
-        alert(error.response?.data?.error || 'Error cancelling booking');
-    }
-}
 
 let _initDone = false;
 // Initialize when DOM is loaded

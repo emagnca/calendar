@@ -74,9 +74,9 @@ class ApiCalendar {
 
                 const user = new User({ email, password, name });
                 await user.save();
-                const token = jwt.sign({ _id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '24h' });
+                const token = jwt.sign({ _id: user._id, email: user.email, role: user.role }, process.env.JWT_SECRET, { expiresIn: '24h' });
                 logMethodExit(methodName, { userId: user._id });
-                res.status(201).json({ token, user: { id: user._id, email: user.email, name: user.name } });
+                res.status(201).json({ token, user: { id: user._id, email: user.email, name: user.name, role: user.role } });
             } catch (error) {
                 console.error(`Error in ${methodName}:`, error);
                 res.status(400).json({ error: error.message });
@@ -117,9 +117,9 @@ class ApiCalendar {
                 user.loginCode = undefined;
                 user.loginCodeExpiry = undefined;
                 await user.save();
-                const token = jwt.sign({ _id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '24h' });
+                const token = jwt.sign({ _id: user._id, email: user.email, role: user.role }, process.env.JWT_SECRET, { expiresIn: '24h' });
                 logMethodExit(methodName, { userId: user._id });
-                res.json({ token, user: { id: user._id, email: user.email, name: user.name } });
+                res.json({ token, user: { id: user._id, email: user.email, name: user.name, role: user.role } });
             } catch (error) {
                 console.error(`Error in ${methodName}:`, error);
                 res.status(400).json({ error: error.message });
@@ -267,14 +267,27 @@ class ApiCalendar {
             try {
                 const event = await Event.findById(req.params.id);
                 if (!event) return res.status(404).json({ error: 'Booking not found' });
+
                 const userIdFromToken = req.user._id || req.user.userId;
-                if (event.userId.toString() !== userIdFromToken.toString()) {
-                    return res.status(403).json({ error: 'You can only cancel your own bookings' });
+                const role = req.user.role || 'user';
+
+                if (role === 'superadmin') {
+                    // can cancel any booking
+                } else if (role === 'admin') {
+                    // can cancel any booking within their group
+                    if (event.group !== req.group.name) {
+                        return res.status(403).json({ error: 'Admins can only cancel bookings within their group' });
+                    }
+                } else {
+                    // regular user: own bookings only
+                    if (event.userId.toString() !== userIdFromToken.toString()) {
+                        return res.status(403).json({ error: 'You can only cancel your own bookings' });
+                    }
                 }
-                event.status = 'cancelled';
-                await event.save();
-                logMethodExit(methodName, event);
-                res.json(event);
+
+                await event.deleteOne();
+                logMethodExit(methodName, { id: req.params.id });
+                res.json({ message: 'Booking removed' });
             } catch (error) {
                 console.error(`Error in ${methodName}:`, error);
                 res.status(400).json({ error: error.message });
@@ -298,7 +311,6 @@ class ApiCalendar {
                     date: new Date(date)
                 }).populate('userId', 'email');
 
-                const confirmedBookings = bookings.filter(b => b.status === 'confirmed');
                 const bookingConfig = this.getBookingConfig(resource);
                 const timeSlots = this.generateTimeSlots(bookingConfig.startTime, bookingConfig.endTime, bookingConfig.duration);
 
@@ -306,7 +318,7 @@ class ApiCalendar {
                     const booking = bookings.find(b => b.time === time);
                     return {
                         time,
-                        isAvailable: !confirmedBookings.some(b => b.time === time),
+                        isAvailable: !booking,
                         booking: booking ? {
                             id: booking._id,
                             userId: booking.userId?._id,
@@ -333,12 +345,185 @@ class ApiCalendar {
 
         app.use('/api', router);
 
+        // ── Admin API ─────────────────────────────────────────────────────────
+
+        const requireRole = (...roles) => async (req, res, next) => {
+            await auth(req, res, async () => {
+                if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+                const user = await User.findById(req.user._id || req.user.userId);
+                if (!user) return res.status(401).json({ error: 'User not found' });
+                if (!roles.includes(user.role)) {
+                    return res.status(403).json({ error: 'Insufficient permissions' });
+                }
+                req.adminUser = user;
+                next();
+            });
+        };
+
+        const adminGroupScope = async (req, res, next) => {
+            // Resolves which group this admin can operate on
+            const groupName = (req.query.group || req.body.group || '').toLowerCase();
+            if (!groupName) return res.status(400).json({ error: 'group parameter required' });
+            if (req.adminUser.role !== 'superadmin' && req.adminUser.group !== groupName) {
+                return res.status(403).json({ error: 'Admins can only manage their own group' });
+            }
+            const group = await Group.findOne({ name: groupName });
+            if (!group) return res.status(404).json({ error: 'Group not found' });
+            req.group = group;
+            next();
+        };
+
+        const adminRouter = express.Router();
+
+        adminRouter.use((req, res, next) => {
+            res.on('finish', () => {
+                const user = req.adminUser ? `${req.adminUser.email} (${req.adminUser.role})` : 'unauthenticated';
+                console.log(`→ admin:${req.method} ${req.path} [${res.statusCode}] — ${user}`);
+            });
+            next();
+        });
+
+        // Groups (superadmin only)
+        adminRouter.get('/groups', requireRole('superadmin'), async (req, res) => {
+            try {
+                const groups = await Group.find().sort('name');
+                res.json(groups);
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        adminRouter.post('/groups', requireRole('superadmin'), async (req, res) => {
+            try {
+                const group = await Group.create({ name: req.body.name.toLowerCase().trim(), public: !!req.body.public });
+                res.status(201).json(group);
+            } catch (e) { res.status(400).json({ error: e.message }); }
+        });
+
+        adminRouter.patch('/groups/:name', requireRole('superadmin'), async (req, res) => {
+            try {
+                const group = await Group.findOneAndUpdate(
+                    { name: req.params.name.toLowerCase() },
+                    { public: !!req.body.public },
+                    { new: true }
+                );
+                if (!group) return res.status(404).json({ error: 'Group not found' });
+                res.json(group);
+            } catch (e) { res.status(400).json({ error: e.message }); }
+        });
+
+        adminRouter.delete('/groups/:name', requireRole('superadmin'), async (req, res) => {
+            try {
+                await Group.deleteOne({ name: req.params.name.toLowerCase() });
+                res.json({ message: 'Group deleted' });
+            } catch (e) { res.status(400).json({ error: e.message }); }
+        });
+
+        // Resources (admin+)
+        adminRouter.get('/resources', requireRole('admin', 'superadmin'), adminGroupScope, async (req, res) => {
+            try {
+                const resources = await Resource.find({ group: req.group.name }).sort('resourceId');
+                res.json(resources);
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        adminRouter.post('/resources', requireRole('admin', 'superadmin'), adminGroupScope, async (req, res) => {
+            try {
+                const resource = await Resource.create({ ...req.body, group: req.group.name });
+                res.status(201).json(resource);
+            } catch (e) { res.status(400).json({ error: e.message }); }
+        });
+
+        adminRouter.put('/resources/:id', requireRole('admin', 'superadmin'), async (req, res) => {
+            try {
+                const resource = await Resource.findById(req.params.id);
+                if (!resource) return res.status(404).json({ error: 'Resource not found' });
+                if (req.adminUser.role !== 'superadmin' && resource.group !== req.adminUser.group) {
+                    return res.status(403).json({ error: 'Admins can only edit resources in their group' });
+                }
+                Object.assign(resource, req.body);
+                await resource.save();
+                res.json(resource);
+            } catch (e) { res.status(400).json({ error: e.message }); }
+        });
+
+        adminRouter.delete('/resources/:id', requireRole('admin', 'superadmin'), async (req, res) => {
+            try {
+                const resource = await Resource.findById(req.params.id);
+                if (!resource) return res.status(404).json({ error: 'Resource not found' });
+                if (req.adminUser.role !== 'superadmin' && resource.group !== req.adminUser.group) {
+                    return res.status(403).json({ error: 'Admins can only delete resources in their group' });
+                }
+                await resource.deleteOne();
+                res.json({ message: 'Resource deleted' });
+            } catch (e) { res.status(400).json({ error: e.message }); }
+        });
+
+        // Users (admin+)
+        adminRouter.get('/users', requireRole('admin', 'superadmin'), adminGroupScope, async (req, res) => {
+            try {
+                const users = await User.find({ group: req.group.name }).select('-password -loginCode -loginCodeExpiry').sort('email');
+                res.json(users);
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        adminRouter.post('/users', requireRole('admin', 'superadmin'), adminGroupScope, async (req, res) => {
+            try {
+                const { email, name, role, password } = req.body;
+                if (req.adminUser.role === 'admin' && role === 'superadmin') {
+                    return res.status(403).json({ error: 'Admins cannot create superadmins' });
+                }
+                const user = new User({ email, name, group: req.group.name, role: role || 'user', password: password || undefined });
+                await user.save();
+                res.status(201).json({ _id: user._id, email: user.email, name: user.name, role: user.role, group: user.group, isActive: user.isActive });
+            } catch (e) { res.status(400).json({ error: e.message }); }
+        });
+
+        adminRouter.put('/users/:id', requireRole('admin', 'superadmin'), async (req, res) => {
+            try {
+                const user = await User.findById(req.params.id);
+                if (!user) return res.status(404).json({ error: 'User not found' });
+                if (req.adminUser.role !== 'superadmin' && user.group !== req.adminUser.group) {
+                    return res.status(403).json({ error: 'Admins can only edit users in their group' });
+                }
+                if (req.adminUser.role === 'admin' && req.body.role === 'superadmin') {
+                    return res.status(403).json({ error: 'Admins cannot assign superadmin role' });
+                }
+                const { email, name, role, isActive, password } = req.body;
+                if (email) user.email = email;
+                if (name)  user.name  = name;
+                if (role)  user.role  = role;
+                if (isActive !== undefined) user.isActive = isActive;
+                if (password) user.password = password;
+                await user.save();
+                res.json({ _id: user._id, email: user.email, name: user.name, role: user.role, group: user.group, isActive: user.isActive });
+            } catch (e) { res.status(400).json({ error: e.message }); }
+        });
+
+        adminRouter.delete('/users/:id', requireRole('admin', 'superadmin'), async (req, res) => {
+            try {
+                const user = await User.findById(req.params.id);
+                if (!user) return res.status(404).json({ error: 'User not found' });
+                if (req.adminUser.role !== 'superadmin' && user.group !== req.adminUser.group) {
+                    return res.status(403).json({ error: 'Admins can only delete users in their group' });
+                }
+                await user.deleteOne();
+                res.json({ message: 'User deleted' });
+            } catch (e) { res.status(400).json({ error: e.message }); }
+        });
+
+        app.use('/api/admin', adminRouter);
+
         // Serve SPA for /<groupname> routes
         app.get('/:group', async (req, res, next) => {
             const groupName = req.params.group.toLowerCase();
+            if (groupName === 'admin') return next();
             const group = await Group.findOne({ name: groupName });
             if (!group) return next();
             res.sendFile(path.join(__dirname, '../client/index.html'));
+        });
+
+        // Serve admin SPA
+        app.get('/admin/:group', (req, res) => {
+            res.sendFile(path.join(__dirname, '../client/admin/index.html'));
         });
     };
 }

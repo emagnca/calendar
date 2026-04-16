@@ -21,9 +21,10 @@ const email    = arg('--email');
 const name     = arg('--name');
 const group    = arg('--group');
 const password = arg('--password');
+const role     = arg('--role');
 
 if (!email || !name || !group) {
-    console.error('Usage: node bin/create-user.js --email <email> --name <name> --group <group> [--password <password>]');
+    console.error('Usage: node bin/create-user.js --email <email> --name <name> --group <group> [--password <password>] [--role user|admin|superadmin]');
     process.exit(1);
 }
 
@@ -37,12 +38,13 @@ async function main() {
         existing.name  = name;
         existing.group = group.toLowerCase();
         if (password) existing.password = password;
+        if (role) existing.role = role;
         await existing.save();
-        console.log(`Updated existing user: ${existing.email} → group=${existing.group}`);
+        console.log(`Updated existing user: ${existing.email} → group=${existing.group}, role=${existing.role}`);
     } else {
-        const user = new User({ email, name, group: group.toLowerCase(), password: password || undefined });
+        const user = new User({ email, name, group: group.toLowerCase(), password: password || undefined, role: role || 'user' });
         await user.save();
-        console.log(`Created user: ${user.email} (${user.name}) → group=${user.group}`);
+        console.log(`Created user: ${user.email} (${user.name}) → group=${user.group}, role=${user.role}`);
     }
 
     await mongoose.disconnect();

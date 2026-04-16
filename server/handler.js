@@ -21,11 +21,11 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/booking-c
     .then(() => console.log('Connected to MongoDB'))
     .catch(err => console.error('MongoDB connection error:', err));
 
+// Serve client static files (must be before SPA catch-all routes)
+app.use(express.static(path.join(__dirname, '../client')));
+
 // Mount API
 new ApiCalendar().expose(app);
-
-// Serve client static files
-app.use(express.static(path.join(__dirname, '../client')));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
