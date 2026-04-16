@@ -104,19 +104,24 @@ h1 {
 }
 
 .calendar-day {
-    aspect-ratio: 1;
+    min-height: 80px;
     background: white;
-    padding: 8px;
+    padding: 6px;
     cursor: pointer;
     transition: background-color 0.2s;
     font-size: 14px;
     touch-action: manipulation;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow: hidden;
 }
 
 @media (max-width: 768px) {
     .calendar-day {
         padding: 4px;
         font-size: 12px;
+        min-height: 56px;
     }
 }
 
@@ -290,29 +295,45 @@ button[type="submit"]:hover {
     background: #45a049;
 }
 
-.calendar-day.has-bookings {
-    position: relative;
+.day-number {
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.2;
+    flex-shrink: 0;
 }
 
-.calendar-day.has-bookings::after {
-    content: '';
-    position: absolute;
-    bottom: 5px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 6px;
-    height: 6px;
-    background: #1976d2;
-    border-radius: 50%;
-}
-
-.booking-count {
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    font-size: 0.8em;
+.calendar-day.today .day-number {
     color: #1976d2;
     font-weight: bold;
+}
+
+.calendar-day.other-month .day-number {
+    color: #ccc;
+}
+
+.day-booking-chip {
+    font-size: 11px;
+    background: #e3f2fd;
+    color: #1565c0;
+    border-radius: 3px;
+    padding: 1px 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
+}
+
+.day-more {
+    font-size: 10px;
+    color: #888;
+    padding: 1px 2px;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .day-booking-chip {
+        font-size: 9px;
+    }
 }
 
 /* Day View Styles */

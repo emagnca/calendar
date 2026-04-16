@@ -11,6 +11,7 @@ const { sendEmail } = require('./utils/messenger');
 const Resource = require('./models/Resource');
 const Event = require('./models/Event');
 const User = require('./models/User');
+const Group = require('./models/Group');
 const auth = require('./middleware/auth');
 
 // Load environment variables
@@ -28,6 +29,14 @@ app.use('/api', apiRouter);
 
 // Serve client static files
 app.use(express.static(path.join(__dirname, '../client')));
+
+// Serve SPA for /<groupname> routes
+app.get('/:group', async (req, res, next) => {
+    const groupName = req.params.group.toLowerCase();
+    const group = await Group.findOne({ name: groupName });
+    if (!group) return next();
+    res.sendFile(path.join(__dirname, '../client/index.html'));
+});
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/booking-calendar', {
@@ -149,13 +158,58 @@ apiRouter.post('/login', async (req, res) => {
     }
 });
 
-// Protected Resource endpoints
-apiRouter.get('/resources', auth, async (req, res) => {
+// Group middleware: resolves group from query param and enforces access
+async function groupAccess(req, res, next) {
+    const groupName = (req.query.group || '').toLowerCase();
+    if (!groupName) return res.status(400).json({ error: 'group parameter required' });
+
+    const group = await Group.findOne({ name: groupName });
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+
+    if (!group.public) {
+        // Private group: require auth and group membership
+        return auth(req, res, async () => {
+            if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+            const user = await User.findById(req.user._id || req.user.userId);
+            if (!user || user.group !== groupName) {
+                return res.status(403).json({ error: 'Not a member of this group' });
+            }
+            req.group = group;
+            next();
+        });
+    }
+    req.group = group;
+    next();
+}
+
+// Group endpoints
+apiRouter.get('/groups/:name', async (req, res) => {
+    try {
+        const group = await Group.findOne({ name: req.params.name.toLowerCase() });
+        if (!group) return res.status(404).json({ error: 'Group not found' });
+        res.json(group);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+apiRouter.post('/groups', async (req, res) => {
+    try {
+        const group = new Group(req.body);
+        await group.save();
+        res.status(201).json(group);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+// Resource endpoints
+apiRouter.get('/resources', groupAccess, async (req, res) => {
     const methodName = 'getResources';
     logMethodEntry(methodName, { query: req.query });
     
     try {
-        const resources = await Resource.find({ isActive: true });
+        const resources = await Resource.find({ isActive: true, group: req.group.name });
         logMethodExit(methodName, resources);
         res.json(resources);
     } catch (error) {
@@ -180,13 +234,13 @@ apiRouter.post('/resources', auth, async (req, res) => {
 });
 
 // Event (Booking) endpoints
-apiRouter.get('/events', auth, async (req, res) => {
+apiRouter.get('/events', groupAccess, async (req, res) => {
     const methodName = 'getEvents';
     logMethodEntry(methodName, { query: req.query });
     
     try {
         const { startDate, endDate, resourceId } = req.query;
-        const query = { status: 'confirmed' };
+        const query = { status: 'confirmed', group: req.group.name };
         
         if (startDate && endDate) {
             query.date = {
@@ -208,7 +262,7 @@ apiRouter.get('/events', auth, async (req, res) => {
     }
 });
 
-apiRouter.post('/events', auth, async (req, res) => {
+apiRouter.post('/events', groupAccess, auth, async (req, res) => {
     const methodName = 'createEvent';
     logMethodEntry(methodName, { body: req.body });
     
@@ -239,11 +293,12 @@ apiRouter.post('/events', auth, async (req, res) => {
         // Create event with resource and user details
         const event = new Event({
             resourceId: req.body.resourceId,
-            resourceName: resource.name, // Store resource name for easier retrieval
-            userId: req.user._id || req.user.userId, // Support both formats
+            resourceName: resource.name,
+            userId: req.user._id || req.user.userId,
             userEmail: req.user.email,
             date: new Date(req.body.date),
             time: req.body.time,
+            group: req.group.name,
             status: 'confirmed'
         });
 
@@ -260,7 +315,7 @@ apiRouter.post('/events', auth, async (req, res) => {
 });
 
 // Cancel booking
-apiRouter.patch('/events/:id/cancel', auth, async (req, res) => {
+apiRouter.patch('/events/:id/cancel', groupAccess, auth, async (req, res) => {
     const methodName = 'cancelEvent';
     logMethodEntry(methodName, { params: req.params });
     
@@ -287,15 +342,16 @@ if (event.userId.toString() !== userIdFromToken.toString()) {
 });
 
 // Get user's bookings
-apiRouter.get('/events/my-bookings', auth, async (req, res) => {
+apiRouter.get('/events/my-bookings', groupAccess, auth, async (req, res) => {
     const methodName = 'getMyBookings';
     logMethodEntry(methodName, { user: req.user });
     
     try {
         const events = await Event.find({ 
             userId: req.user._id || req.user.userId,
-            date: { $gte: new Date() } // Only future bookings
-        }).sort({ date: 1, time: 1 }); // Sort by date and time
+            group: req.group.name,
+            date: { $gte: new Date() }
+        }).sort({ date: 1, time: 1 });
         
         logMethodExit(methodName, events);
         res.json(events);
@@ -334,7 +390,7 @@ function generateTimeSlots(startTime, endTime, duration) {
 }
 
 // Check availability
-apiRouter.get('/availability', auth, async (req, res) => {
+apiRouter.get('/availability', groupAccess, async (req, res) => {
     const methodName = 'checkAvailability';
     logMethodEntry(methodName, { query: req.query });
     
@@ -346,7 +402,7 @@ apiRouter.get('/availability', auth, async (req, res) => {
         }
 
         // Get resource configuration
-        const resource = await Resource.findOne({ resourceId });
+        const resource = await Resource.findOne({ resourceId, group: req.group.name });
         if (!resource) {
             return res.status(404).json({ error: 'Resource not found' });
         }
@@ -354,6 +410,7 @@ apiRouter.get('/availability', auth, async (req, res) => {
         // Get existing bookings with user info
         const bookings = await Event.find({
             resourceId,
+            group: req.group.name,
             date: new Date(date)
         }).populate('userId', 'email');
 

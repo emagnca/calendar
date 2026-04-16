@@ -4,11 +4,19 @@ let selectedResourceId = null;
 let resources = []; // Store resources from API
 let bookings = new Map(); // Store bookings: date -> [{resource, time}]
 
+// Read group from URL path: /<groupname>
+const currentGroup = window.location.pathname.split('/').filter(Boolean)[0] || null;
+
+// Append group to any params object
+function groupParam(params = {}) {
+    return currentGroup ? { ...params, group: currentGroup } : params;
+}
+
 // Fetch resources from API
 async function fetchResources() {
     try {
         console.log('Fetching resources from server...');
-        const response = await axios.get('/resources');
+        const response = await axios.get('/resources', { params: groupParam() });
         resources = response.data;
         console.log('Resources fetched:', resources);
         updateResourceSelects();
@@ -119,10 +127,10 @@ async function getResourceAvailability(resourceId, date) {
     try {
         console.log('Hämtar tillgänglighet för:', { resourceId, date });
         const response = await axios.get('/availability', {
-            params: {
+            params: groupParam({
                 date: date,
                 resourceId: resourceId
-            }
+            })
         });
         console.log('Tillgänglighetsrespons:', response.data);
         return response.data;
@@ -366,23 +374,41 @@ function createDayElement(day, isOtherMonth, isToday = false) {
     if (isOtherMonth) dayDiv.classList.add('other-month');
     if (isToday) dayDiv.classList.add('today');
 
-    // Check for bookings on this day
+    // Day number
+    const dayNumber = document.createElement('span');
+    dayNumber.className = 'day-number';
+    dayNumber.textContent = day;
+    dayDiv.appendChild(dayNumber);
+
+    // Booking chips for current-month days
     if (!isOtherMonth) {
         const dateStr = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
             .toISOString().split('T')[0];
         const dayBookings = bookings.get(dateStr);
-        
+
         if (dayBookings && dayBookings.length > 0) {
-            dayDiv.classList.add('has-bookings');
-            const count = document.createElement('span');
-            count.className = 'booking-count';
-            count.textContent = dayBookings.length;
-            dayDiv.appendChild(count);
+            const MAX_CHIPS = 3;
+            const visible = dayBookings.slice(0, MAX_CHIPS);
+            const overflow = dayBookings.length - MAX_CHIPS;
+
+            visible.forEach(b => {
+                const resource = resources.find(r => r.resourceId === b.resource);
+                const label = resource ? localize(resource.name) : b.resource;
+                const chip = document.createElement('div');
+                chip.className = 'day-booking-chip';
+                chip.textContent = `${b.time} ${label}`;
+                dayDiv.appendChild(chip);
+            });
+
+            if (overflow > 0) {
+                const more = document.createElement('div');
+                more.className = 'day-more';
+                more.textContent = `+${overflow}`;
+                dayDiv.appendChild(more);
+            }
         }
     }
 
-    dayDiv.textContent = day;
-    
     if (!isOtherMonth) {
         dayDiv.addEventListener('click', async (event) => {
             selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
@@ -762,7 +788,7 @@ async function handleInlineBooking(resource, time) {
             resourceId: resource,
             date: selectedDate.toISOString().split('T')[0],
             time: time
-        });
+        }, { params: groupParam() });
 
         // Refresh bookings for this date
         await fetchBookingsForMonth(currentDate);
@@ -797,10 +823,10 @@ async function fetchBookingsForMonth(date) {
     
     try {
         const response = await axios.get('/events', {
-            params: {
+            params: groupParam({
                 startDate: startDate.toISOString().split('T')[0],
                 endDate: endDate.toISOString().split('T')[0]
-            }
+            })
         });
         
         // Clear existing bookings for this month
@@ -841,7 +867,7 @@ async function handleBooking(event) {
             resourceId: resource,
             date: selectedDate.toISOString().split('T')[0],
             time: time
-        });
+        }, { params: groupParam() });
 
         // Close modal and reset form
         bookingModal.style.display = 'none';
@@ -1473,7 +1499,7 @@ async function initializeCalendar() {
             alert(t('alert_no_resources'));
         }
         await fetchBookingsForMonth(currentDate);
-        await fetchMyBookings(); // Fetch user's bookings
+        if (currentUser) await fetchMyBookings();
         initCalendar();
         console.log('Calendar initialized successfully');
     } catch (error) {
@@ -1485,7 +1511,7 @@ async function initializeCalendar() {
 // Fetch user's bookings
 async function fetchMyBookings() {
     try {
-        const response = await axios.get('/events/my-bookings');
+        const response = await axios.get('/events/my-bookings', { params: groupParam() });
         const bookings = response.data;
         displayMyBookings(bookings);
     } catch (error) {
@@ -1529,7 +1555,7 @@ async function cancelBooking(bookingId) {
     }
 
     try {
-        await axios.patch(`/events/${bookingId}/cancel`);
+        await axios.patch(`/events/${bookingId}/cancel`, {}, { params: groupParam() });
         await Promise.all([
             fetchMyBookings(),
             fetchBookingsForMonth(currentDate)
@@ -1541,8 +1567,11 @@ async function cancelBooking(bookingId) {
     }
 }
 
+let _initDone = false;
 // Initialize when DOM is loaded
-function init() {
+async function init() {
+    if (_initDone) return;
+    _initDone = true;
     // Remove any existing modals
     const existingModals = document.querySelectorAll('.modal');
     existingModals.forEach(modal => modal.remove());
@@ -1550,32 +1579,54 @@ function init() {
     // Update user info display
     updateUserInfo();
 
-    // Check if user is authenticated
-    if (authToken) {
-        // Set default Authorization header
-        axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
-        
-        // Try to initialize calendar
-        initializeCalendar().catch(error => {
-            // If token is invalid, show login form
-            if (error.response?.status === 401) {
-                localStorage.removeItem('authToken');
-                authToken = null;
-                showLoginForm();
-            } else {
-                console.error('Error during initialization:', error);
-                alert(t('alert_error_init'));
-            }
-        });
+    // No group in URL — show an error
+    if (!currentGroup) {
+        document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;"><h2>No group specified</h2><p>Please access the calendar via <code>/&lt;groupname&gt;</code>.</p></div>';
+        return;
+    }
+
+    // Fetch group info to determine public/private
+    let groupInfo;
+    try {
+        const res = await axios.get(`/groups/${currentGroup}`);
+        groupInfo = res.data;
+    } catch (e) {
+        const url = `/groups/${currentGroup}`;
+        console.error('Group fetch failed:', url, e?.response?.status, e?.response?.data, e?.message);
+        document.body.innerHTML = `<div style="padding:40px;font-family:sans-serif;"><h2>Group not found</h2>
+            <p>URL: <code>${url}</code></p>
+            <p>Status: <code>${e?.response?.status}</code></p>
+            <p>Response: <code>${JSON.stringify(e?.response?.data)}</code></p>
+            <p>Message: <code>${e?.message}</code></p>
+            <p>currentGroup: <code>${currentGroup}</code></p>
+            <p>pathname: <code>${window.location.pathname}</code></p></div>`;
+        return;
+    }
+
+    if (groupInfo.public) {
+        // Public group: go straight to calendar, no login required
+        initializeCalendar().catch(err => console.error('Init error:', err));
     } else {
-        // Show login form if no token
-        setTimeout(showLoginForm, 0); // Ensure this runs after DOM is ready
+        // Private group: require authentication
+        if (authToken) {
+            axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
+            initializeCalendar().catch(error => {
+                if (error.response?.status === 401 || error.response?.status === 403) {
+                    localStorage.removeItem('authToken');
+                    authToken = null;
+                    showLoginForm();
+                } else {
+                    console.error('Error during initialization:', error);
+                    alert(t('alert_error_init'));
+                }
+            });
+        } else {
+            setTimeout(showLoginForm, 0);
+        }
     }
 }
 
-// Initialize immediately and when DOM is loaded
-init();
-// Set up event listeners
+// Set up event listeners and initialize once DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     init();
     document.getElementById('logoutButton').addEventListener('click', handleLogout);
