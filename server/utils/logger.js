@@ -1,19 +1,18 @@
-function formatParams(params) {
-    return JSON.stringify(params, (key, value) => {
-        // Handle Date objects specially
-        if (value instanceof Date) {
-            return value.toISOString();
-        }
-        return value;
-    }, 2);
-}
+const DEBUG = process.env.DEBUG === '1';
 
 function logMethodEntry(methodName, params) {
-    console.log(`--->${methodName} ${formatParams(params)}`);
+    if (DEBUG) {
+        console.log(`→ ${methodName}`, JSON.stringify(params));
+    } else {
+        console.log(`→ ${methodName}`);
+    }
 }
 
 function logMethodExit(methodName, result) {
-    console.log(`<---${methodName} ${formatParams(result)}`);
+    if (DEBUG) {
+        const summary = Array.isArray(result) ? `[${result.length} items]` : (result?._id || '');
+        console.log(`← ${methodName}`, summary);
+    }
 }
 
 module.exports = {

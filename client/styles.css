@@ -142,6 +142,24 @@ h1 {
     color: #1976d2;
 }
 
+.calendar-day.past {
+    cursor: not-allowed;
+    background: #fafafa;
+    pointer-events: none;
+}
+
+.calendar-day.past:hover {
+    background: #fafafa;
+}
+
+.calendar-day.past .day-number {
+    color: #ccc;
+}
+
+.calendar-day.past .day-booking-chip {
+    opacity: 0.4;
+}
+
 .modal {
     display: none;
     position: fixed;

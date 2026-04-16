@@ -197,6 +197,16 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
         const dateStr = selectedDate.toISOString().split('T')[0];
         const { resource: resourceDetails, availability } = await getResourceAvailability(resourceId, dateStr);
 
+        // Determine which slots are in the past (only relevant when selected date is today)
+        const now = new Date();
+        const isToday = selectedDate.toDateString() === now.toDateString();
+        const nowMinutes = now.getHours() * 60 + now.getMinutes();
+        const isSlotPast = (timeStr) => {
+            if (!isToday) return false;
+            const [h, m] = timeStr.split(':').map(Number);
+            return (h * 60 + m) <= nowMinutes;
+        };
+
         // Show resource information
         const resourceInfo = `
             <div class="resource-details">
@@ -214,32 +224,36 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
             timeSlotsContainer.innerHTML = `
                 <h3>${t('available_times_title')}</h3>
                 <div class="time-grid">
-                    ${availability.map(slot => `
-                        <div class="time-slot ${slot.isAvailable ? 'available' : 'booked'}">
+                    ${availability.map(slot => {
+                        const past = isSlotPast(slot.time);
+                        const cls = past ? 'past' : (slot.isAvailable ? 'available' : 'booked');
+                        const action = past
+                            ? ''
+                            : slot.isAvailable
+                                ? `<button onclick="handleInlineBooking('${resourceId}', '${slot.time}')">${t('btn_book_slot')}</button>`
+                                : slot.booking
+                                    ? `<span class="booking-info">
+                                        <span class="status">${slot.booking.status}</span>
+                                        ${slot.booking.userId === currentUser?.id
+                                            ? `<button onclick="cancelBooking('${slot.booking.id}', this)">${t('btn_cancel_booking')}</button>`
+                                            : ''}
+                                       </span>`
+                                    : `<span class="booked-label">${t('label_booked')}</span>`;
+                        return `
+                        <div class="time-slot ${cls}">
                             <div class="time-label">${slot.time}</div>
-                            <div class="booking-container">
-                                ${slot.isAvailable ? 
-                                    `<button onclick="handleInlineBooking('${resourceId}', '${slot.time}')">${t('btn_book_slot')}</button>` : 
-                                    slot.booking ? 
-                                        `<span class="booking-info">
-                                            <span class="status">${slot.booking.status}</span>
-                                            ${slot.booking.userId === currentUser?.id ? 
-                                                `<button onclick="cancelBooking('${slot.booking.id}', this)">${t('btn_cancel_booking')}</button>` : 
-                                                ''}
-                                        </span>` : 
-                                        `<span class="booked-label">${t('label_booked')}</span>`}
-                            </div>
-                        </div>
-                    `).join('')}
+                            <div class="booking-container">${action}</div>
+                        </div>`;
+                    }).join('')}
                 </div>
             `;
         } else {
-            // Modal view
+            // Modal view — exclude past slots
             const timeSlotSelect = document.getElementById('timeSlot');
             const nextButton = document.getElementById('nextStep');
             
             if (timeSlotSelect) {
-                const availableSlots = availability.filter(slot => slot.isAvailable);
+                const availableSlots = availability.filter(slot => slot.isAvailable && !isSlotPast(slot.time));
                 timeSlotSelect.innerHTML = availableSlots.length > 0 ?
                     availableSlots.map(slot => 
                         `<option value="${slot.time}">${slot.time}</option>`
@@ -351,11 +365,12 @@ function renderCalendar() {
 
     // Add current month's days
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     for (let day = 1; day <= totalDays; day++) {
-        const isToday = today.getDate() === day && 
-                       today.getMonth() === month && 
-                       today.getFullYear() === year;
-        const dayDiv = createDayElement(day, false, isToday);
+        const dayDate = new Date(year, month, day);
+        const isToday = dayDate.getTime() === today.getTime();
+        const isPast = dayDate < today;
+        const dayDiv = createDayElement(day, false, isToday, isPast);
         calendarDays.appendChild(dayDiv);
     }
 
@@ -368,11 +383,12 @@ function renderCalendar() {
 }
 
 // Create a day element
-function createDayElement(day, isOtherMonth, isToday = false) {
+function createDayElement(day, isOtherMonth, isToday = false, isPast = false) {
     const dayDiv = document.createElement('div');
     dayDiv.className = 'calendar-day';
     if (isOtherMonth) dayDiv.classList.add('other-month');
     if (isToday) dayDiv.classList.add('today');
+    if (isPast) dayDiv.classList.add('past');
 
     // Day number
     const dayNumber = document.createElement('span');
@@ -409,7 +425,7 @@ function createDayElement(day, isOtherMonth, isToday = false) {
         }
     }
 
-    if (!isOtherMonth) {
+    if (!isOtherMonth && !isPast) {
         dayDiv.addEventListener('click', async (event) => {
             selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
             if (event.ctrlKey || event.metaKey) {
@@ -971,6 +987,20 @@ styles.textContent = `
 
     .logout-button:hover {
         background-color: #c82333;
+    }
+
+    .time-slot.past {
+        background-color: #f5f5f5;
+        border-color: #e0e0e0;
+        opacity: 0.5;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+
+    .past-label {
+        font-size: 12px;
+        color: #aaa;
+        font-style: italic;
     }
 
     .time-slot.cancelled {
