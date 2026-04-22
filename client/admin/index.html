@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="/">
+    <title>Admin</title>
+    <link rel="stylesheet" href="admin/admin.css">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="lang/sv.js"></script>
+    <script src="lang/en.js"></script>
+    <script src="i18n.js"></script>
+    <script>
+        axios.defaults.baseURL = '/api';
+        axios.interceptors.response.use(
+            r => r,
+            e => { console.error('API Error:', e.response?.data || e.message); return Promise.reject(e); }
+        );
+    </script>
+</head>
+<body>
+
+<!-- Login overlay -->
+<div id="loginOverlay" class="overlay">
+    <div class="login-card">
+        <h2 data-i18n="admin_login_title">Admin Login</h2>
+        <div id="loginStep1">
+            <label data-i18n="admin_th_email">Email</label>
+            <input type="email" id="loginEmail" placeholder="admin@example.com">
+            <button id="btnSendCode" data-i18n="admin_btn_send_code">Send login code</button>
+            <p id="loginError" class="error-msg"></p>
+        </div>
+        <div id="loginStep2" style="display:none">
+            <label data-i18n="admin_label_code">Login code</label>
+            <input type="text" id="loginCode" placeholder="Enter code from email…" maxlength="6">
+            <button id="btnVerifyCode" data-i18n="admin_btn_login">Login</button>
+            <p id="codeError" class="error-msg"></p>
+        </div>
+    </div>
+</div>
+
+<!-- Main app -->
+<div id="app" style="display:none">
+    <header class="topbar">
+        <span class="topbar-title">Admin — <span id="groupLabel"></span></span>
+        <div class="topbar-right">
+            <span id="currentUserName"></span>
+            <select id="groupSwitcher" class="lang-picker" style="display:none"></select>
+            <select id="langPicker" class="lang-picker">
+                <option value="sv">🇸🇪 Svenska</option>
+                <option value="en">🇬🇧 English</option>
+            </select>
+            <button class="btn btn-sm btn-danger" id="btnLogout" data-i18n="logout">Logout</button>
+        </div>
+    </header>
+
+    <div class="layout">
+        <nav class="sidebar">
+            <ul>
+                <li><a href="#" data-tab="resources" class="active" data-i18n="admin_nav_resources">Resources</a></li>
+                <li><a href="#" data-tab="users" data-i18n="admin_nav_users">Users</a></li>
+                <li id="groupsNav" style="display:none"><a href="#" data-tab="groups" data-i18n="admin_nav_groups">Groups</a></li>
+            </ul>
+        </nav>
+
+        <main class="content">
+            <!-- Resources -->
+            <section id="tab-resources" class="tab active">
+                <div class="section-header">
+                    <h2 data-i18n="admin_nav_resources">Resources</h2>
+                    <button class="btn btn-primary" id="btnAddResource" data-i18n="admin_btn_add_resource">+ Add resource</button>
+                </div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th data-i18n="admin_th_id">ID</th>
+                            <th data-i18n="admin_th_name">Name (sv / en)</th>
+                            <th data-i18n="admin_th_slot">Slot (min)</th>
+                            <th data-i18n="admin_th_hours">Hours</th>
+                            <th data-i18n="admin_th_active">Active</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="resourcesBody"></tbody>
+                </table>
+            </section>
+
+            <!-- Users -->
+            <section id="tab-users" class="tab">
+                <div class="section-header">
+                    <h2 data-i18n="admin_nav_users">Users</h2>
+                    <button class="btn btn-primary" id="btnAddUser" data-i18n="admin_btn_add_user">+ Add user</button>
+                </div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th data-i18n="admin_th_email">Email</th>
+                            <th data-i18n="label_name">Name</th>
+                            <th data-i18n="admin_th_role">Role</th>
+                            <th data-i18n="admin_th_active">Active</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersBody"></tbody>
+                </table>
+            </section>
+
+            <!-- Groups (superadmin) -->
+            <section id="tab-groups" class="tab">
+                <div class="section-header">
+                    <h2 data-i18n="admin_nav_groups">Groups</h2>
+                    <button class="btn btn-primary" id="btnAddGroup" data-i18n="admin_btn_add_group">+ Add group</button>
+                </div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th data-i18n="admin_field_group_name">Name</th>
+                            <th data-i18n="admin_th_public">Public</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="groupsBody"></tbody>
+                </table>
+            </section>
+        </main>
+    </div>
+</div>
+
+<!-- Modal -->
+<div id="modal" class="modal-overlay" style="display:none">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 id="modalTitle"></h3>
+            <button class="modal-close" id="btnModalClose">&times;</button>
+        </div>
+        <div class="modal-body" id="modalBody"></div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" id="btnModalCancel" data-i18n="btn_cancel">Cancel</button>
+            <button class="btn btn-primary" id="btnModalSave" data-i18n="admin_btn_save">Save</button>
+        </div>
+    </div>
+</div>
+
+<script src="admin/admin.js"></script>
+</body>
+</html>

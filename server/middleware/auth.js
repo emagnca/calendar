@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { getSecret } = require('../utils/utils');
 
 const auth = async (req, res, next) => {
     try {
@@ -7,7 +8,8 @@ const auth = async (req, res, next) => {
             return res.status(401).json({ error: 'Authentication required' });
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const jwtSecret = await getSecret('cal_jwt_secret');
+        const decoded = jwt.verify(token, jwtSecret.secret || jwtSecret);
         req.user = decoded;
         next();
     } catch (error) {

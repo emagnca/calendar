@@ -16,8 +16,7 @@ const sv = {
     // Sections
     resources_title: 'Tillgängliga resurser',
     bookings_title: 'Aktuella bokningar',
-    btn_export: 'Exportera bokningar som JSON',
-
+    admin_label_group: 'Grupp',
     // Resource cards
     no_resources: 'Inga resurser tillgängliga.',
     card_click_hint: 'Klicka för att välja',

@@ -5,6 +5,7 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 const { logMethodEntry, logMethodExit } = require('./utils/logger');
 const { sendEmail } = require('./utils/messenger');
+const { getSecret } = require('./utils/utils');
 
 const Resource = require('./models/Resource');
 const Event = require('./models/Event');
@@ -63,6 +64,15 @@ class ApiCalendar {
     expose = (app) => {
         const router = express.Router();
 
+        // Health
+        router.get('/health', (req, res) => {
+            res.json({
+                status: 'healthy',
+                platform: process.env.CAL_PLATFORM || 'local',
+                timestamp: new Date().toISOString()
+            });
+        });
+
         // Auth
         router.post('/register', async (req, res) => {
             const methodName = 'register';
@@ -74,7 +84,8 @@ class ApiCalendar {
 
                 const user = new User({ email, password, name });
                 await user.save();
-                const token = jwt.sign({ _id: user._id, email: user.email, role: user.role }, process.env.JWT_SECRET, { expiresIn: '24h' });
+                const jwtSecret = await getSecret('cal_jwt_secret');
+                const token = jwt.sign({ _id: user._id, email: user.email, role: user.role }, jwtSecret.secret || jwtSecret, { expiresIn: '24h' });
                 logMethodExit(methodName, { userId: user._id });
                 res.status(201).json({ token, user: { id: user._id, email: user.email, name: user.name, role: user.role } });
             } catch (error) {
@@ -117,7 +128,8 @@ class ApiCalendar {
                 user.loginCode = undefined;
                 user.loginCodeExpiry = undefined;
                 await user.save();
-                const token = jwt.sign({ _id: user._id, email: user.email, role: user.role }, process.env.JWT_SECRET, { expiresIn: '24h' });
+                const jwtSecret = await getSecret('cal_jwt_secret');
+                const token = jwt.sign({ _id: user._id, email: user.email, role: user.role }, jwtSecret.secret || jwtSecret, { expiresIn: '24h' });
                 logMethodExit(methodName, { userId: user._id });
                 res.json({ token, user: { id: user._id, email: user.email, name: user.name, role: user.role } });
             } catch (error) {
@@ -510,6 +522,7 @@ class ApiCalendar {
             } catch (e) { res.status(400).json({ error: e.message }); }
         });
 
+        app.use(router);
         app.use('/api/admin', adminRouter);
 
         // Serve SPA for /<groupname> routes
@@ -518,12 +531,12 @@ class ApiCalendar {
             if (groupName === 'admin') return next();
             const group = await Group.findOne({ name: groupName });
             if (!group) return next();
-            res.sendFile(path.join(__dirname, '../client/index.html'));
+            res.sendFile(path.join(__dirname, 'client/index.html'));
         });
 
         // Serve admin SPA
         app.get('/admin/:group', (req, res) => {
-            res.sendFile(path.join(__dirname, '../client/admin/index.html'));
+            res.sendFile(path.join(__dirname, 'client/admin/index.html'));
         });
     };
 }

@@ -358,11 +358,7 @@ function initCalendar() {
 
     bookingForm.addEventListener('submit', handleBooking);
 
-    // Add export button handler
-    document.getElementById('exportBookings').addEventListener('click', exportBookings);
-
     renderCalendar();
-    updateBookingsDisplay();
 }
 
 // Render the calendar
@@ -837,7 +833,6 @@ async function handleInlineBooking(resource, time) {
         await fetchBookingsForMonth(currentDate);
         
         // Update displays
-        updateBookingsDisplay();
         renderCalendar(); // Refresh calendar to show new booking indicators
 
         // Instead of refreshing the entire day view, just update the availability
@@ -887,7 +882,6 @@ async function fetchBookingsForMonth(date) {
             });
         });
         
-        updateBookingsDisplay();
         renderCalendar();
     } catch (error) {
         console.error('Error fetching bookings:', error);
@@ -923,7 +917,6 @@ async function handleBooking(event) {
         await fetchBookingsForMonth(currentDate);
         
         // Update displays
-        updateBookingsDisplay();
         renderCalendar();
     } catch (error) {
         if (error.response && error.response.status === 409) {
@@ -933,39 +926,6 @@ async function handleBooking(event) {
             alert(t('alert_error_booking'));
         }
     }
-}
-
-// Update bookings display
-function updateBookingsDisplay() {
-    const bookingsDisplay = document.getElementById('bookingsDisplay');
-    if (!bookingsDisplay) return;
-
-    const bookingsObj = {};
-    
-    // Convert Map to regular object for JSON display
-    for (const [date, dayBookings] of bookings) {
-        bookingsObj[date] = dayBookings;
-    }
-    
-    bookingsDisplay.textContent = JSON.stringify(bookingsObj, null, 2);
-}
-
-// Export bookings as JSON file
-function exportBookings() {
-    const bookingsObj = {};
-    for (const [date, dayBookings] of bookings) {
-        bookingsObj[date] = dayBookings;
-    }
-    
-    const dataStr = JSON.stringify(bookingsObj, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-    
-    const exportLink = document.createElement('a');
-    exportLink.setAttribute('href', dataUri);
-    exportLink.setAttribute('download', 'bookings.json');
-    document.body.appendChild(exportLink);
-    exportLink.click();
-    document.body.removeChild(exportLink);
 }
 
 // Add styles for modals

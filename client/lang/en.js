@@ -16,8 +16,7 @@ const en = {
     // Sections
     resources_title: 'Available resources',
     bookings_title: 'Current bookings',
-    btn_export: 'Export bookings as JSON',
-
+    admin_label_group: 'Group',
     // Resource cards
     no_resources: 'No resources available.',
     card_click_hint: 'Click to select',

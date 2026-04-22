@@ -61,7 +61,22 @@ const RESOURCES = [
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
-    const uri = process.env.MONGODB_URI || 'mongodb://localhost:27018/booking-calendar';
+    //const raw = process.env.CAL_MONGODB || 'mongodb://localhost:27018/booking-calendar';
+    const raw = '{"url":"mongodb+srv://cluster-mmdok-shared.ic2fz.mongodb.net/booking-calendar","usr":"mmadmin","pwd":"q1BsBbxJquriFlk7"}';
+    console.log("raw", raw);
+    let uri;
+    try {
+        const m = JSON.parse(raw);
+        if (m.usr && m.pwd) {
+            const base = new URL(m.url);
+            base.username = m.usr; base.password = m.pwd;
+            uri = base.toString();
+        } else {
+            uri = m.url;
+        }
+    } catch {
+        uri = raw;
+    }
     await mongoose.connect(uri);
     console.log('Connected to', uri);
 

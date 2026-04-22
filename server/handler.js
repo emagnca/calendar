@@ -9,6 +9,7 @@ const path = require('path');
 
 const serverless = require('serverless-http');
 const ApiCalendar = require('./api');
+const { getSecret } = require('./utils/utils');
 
 const app = express();
 
@@ -16,13 +17,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/booking-calendar')
-    .then(() => console.log('Connected to MongoDB'))
-    .catch(err => console.error('MongoDB connection error:', err));
-
 // Serve client static files (must be before SPA catch-all routes)
-app.use(express.static(path.join(__dirname, '../client')));
+app.use(express.static(path.join(__dirname, 'client')));
 
 // Mount API
 new ApiCalendar().expose(app);
@@ -33,8 +29,33 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: 'Something went wrong!' });
 });
 
+// Lazy init — resolved once per Lambda cold start
+let initPromise = null;
+
+async function init() {
+    const mongoSecret = await getSecret('cal_mongodb');
+    let uri;
+    if (mongoSecret && typeof mongoSecret === 'object') {
+        const baseUrl = mongoSecret.url || mongoSecret.uri;
+        if (mongoSecret.usr && mongoSecret.pwd) {
+            const base = new URL(baseUrl);
+            base.username = mongoSecret.usr;
+            base.password = mongoSecret.pwd;
+            uri = base.toString();
+        } else {
+            uri = baseUrl;
+        }
+    } else {
+        uri = mongoSecret;
+    }
+    await mongoose.connect(uri);
+    console.log('Connected to MongoDB');
+}
+
 const handler = async (event, context) => {
+    if (!initPromise) initPromise = init();
+    await initPromise;
     return serverless(app)(event, context);
 };
 
-module.exports = { app, calendar: handler };
+module.exports = { app, calendar: handler, init };

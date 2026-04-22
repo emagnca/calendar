@@ -118,4 +118,4 @@ eventSchema.index(
     }
 );
 
-module.exports = mongoose.model('Event', eventSchema);
+module.exports = mongoose.model('Event', eventSchema, 'cal_events');

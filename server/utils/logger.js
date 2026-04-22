@@ -1,4 +1,4 @@
-const DEBUG = process.env.DEBUG === '1';
+const DEBUG = process.env.CAL_DEBUG === '1';
 
 function logMethodEntry(methodName, params) {
     if (DEBUG) {

@@ -20,7 +20,7 @@ const { MongoClient } = require('mongodb');
 
   const client = new MongoClient(uri);
   await client.connect();
-  const db = client.db('mmdok');
+  const db = client.db('booking_calendar');
   console.log('Connected to in-memory MongoDB');
 
   // ... do stuff with db ...

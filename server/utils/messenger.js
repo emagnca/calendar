@@ -6,14 +6,15 @@ let sesClient = null;
 
 const sendEmail = async (to, msg, subject='Meddelande från TinyDS') => {
   if (!sesClient) {
-    const secret = await utils.getSecret("email");
-    sesClient = new SESClient({
-      region: secret.region,
-      credentials: {
-        accessKeyId: secret.access_key,
-        secretAccessKey: secret.secret_key,
-      }
-    });
+    const secret = await utils.getSecret("cal_email");
+    const region    = secret?.region     || process.env.EMAIL_REGION;
+    const accessKey = secret?.access_key || process.env.EMAIL_ACCESS_KEY;
+    const secretKey = secret?.secret_key || process.env.EMAIL_SECRET_KEY;
+    const config = { region };
+    if (accessKey && secretKey) {
+      config.credentials = { accessKeyId: accessKey, secretAccessKey: secretKey };
+    }
+    sesClient = new SESClient(config);
   }
 
   const params = {

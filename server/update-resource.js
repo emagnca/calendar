@@ -43,7 +43,10 @@ const Resource = mongoose.model('Resource', resourceSchema);
 
 async function updateResource() {
     try {
-        await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/booking-calendar');
+        const _raw = process.env.CAL_MONGODB || 'mongodb://localhost:27018/booking-calendar';
+        let _uri;
+        try { const _m = JSON.parse(_raw); _uri = (_m.usr && _m.pwd) ? (() => { const _b = new URL(_m.url); _b.username = _m.usr; _b.password = _m.pwd; return _b.toString(); })() : _m.url; } catch { _uri = _raw; }
+        await mongoose.connect(_uri);
         console.log('Connected to MongoDB');
 
         // Update the projector resource
