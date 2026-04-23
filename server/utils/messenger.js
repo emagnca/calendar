@@ -30,14 +30,32 @@ const sendEmail = async (to, msg, subject='Meddelande från TinyDS') => {
   console.log("Sent email to " + to);
 };
 
-const sendSms = async (to, code) => {
-  const message = 'Din kod från TinyDS är ' + code;
-  const key = 'ixMOqk9xAAmqH3vD11JWT4XLjYV6nZmGx9vXuEv5fSwWV1AX2j';
-  const url = 'https://sms.inleed.se/skickaSMS?nummer=' + to + "&nyckel=" + key + "&message=" + message;
-  response = await fetch(url, {
-      method: 'GET'
-  });
-  console.log("SMS send status=" + response.status);
+function normalizeSmsNumber(phone) {
+  let n = String(phone);
+  n = n.replace(/^0046/, '0');
+  n = n.replace(/^\+46/, '0');
+  if (n.startsWith('7')) n = '0' + n;
+  return n;
+}
+
+const sendSms = async (to, subject, message) => {
+  const secret = await utils.getSecret('cal_sms').catch(() => null);
+  const key = (typeof secret === 'string' ? secret : secret?.key)
+    || process.env.CAL_SMS_KEY;
+
+  const number = normalizeSmsNumber(to);
+  const text = subject ? subject + '\n' + message : message;
+  const url = 'https://sms.inleed.se/skickaSMS'
+    + '?nummer=' + encodeURIComponent(number)
+    + '&text='   + encodeURIComponent(text)
+    + '&nyckel=' + encodeURIComponent(key);
+
+  try {
+    const response = await fetch(url, { method: 'GET' });
+    console.log('SMS sent to ' + number + ', status=' + response.status);
+  } catch (err) {
+    console.error('Failed to send SMS to ' + number + ':', err.message);
+  }
 };
 
 module.exports = { sendEmail, sendSms };

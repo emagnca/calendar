@@ -28,13 +28,15 @@
     <div class="container">
         <div class="header">
             <h1 data-i18n="app_title">Resursbokning</h1>
-            <div class="user-info" id="userInfo" style="display: none;">
-                <span id="userName"></span>
+            <div style="display:flex;align-items:center;gap:8px">
                 <select id="langPicker" class="lang-picker">
                     <option value="sv">🇸🇪 Svenska</option>
                     <option value="en">🇬🇧 English</option>
                 </select>
-                <button id="logoutButton" class="logout-button" data-i18n="logout">Logga ut</button>
+                <div class="user-info" id="userInfo" style="display: none;">
+                    <span id="userName"></span>
+                    <button id="logoutButton" class="logout-button" data-i18n="logout">Logga ut</button>
+                </div>
             </div>
         </div>
         

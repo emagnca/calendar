@@ -137,6 +137,7 @@ function switchTab(name) {
 function loadCurrentTab() {
     if (activeTab === 'resources') loadResources();
     else if (activeTab === 'users')  loadUsers();
+    else if (activeTab === 'bookings') loadBookings();
     else if (activeTab === 'groups') loadGroups();
 }
 
@@ -400,6 +401,50 @@ window.deleteUser = async (id) => {
     try {
         await axios.delete(`/admin/users/${id}`);
         loadUsers();
+    } catch (e) { alert(apiError(e)); }
+};
+
+// ── Bookings ──────────────────────────────────────────────────────────────────
+
+async function loadBookings() {
+    const tbody = document.getElementById('bookingsBody');
+    tbody.innerHTML = `<tr><td colspan="6">${t('admin_loading')}</td></tr>`;
+    try {
+        const from = document.getElementById('bookingsFrom').value;
+        const to   = document.getElementById('bookingsTo').value;
+        let url = `/admin/events${groupQuery()}`;
+        const params = [];
+        if (from) params.push('startDate=' + from);
+        if (to)   params.push('endDate='   + to);
+        if (params.length) url += (groupQuery() ? '&' : '?') + params.join('&');
+        const res = await axios.get(url);
+        tbody.innerHTML = res.data.map(e => {
+            const d = new Date(e.date);
+            const dateStr = d.toLocaleDateString();
+            const name = localize(e.resourceName) || e.resourceId;
+            return `<tr>
+                <td>${dateStr}</td>
+                <td>${e.time}</td>
+                <td>${name}</td>
+                <td>${e.userEmail}</td>
+                <td><span class="badge badge-${e.status}">${e.status}</span></td>
+                <td class="actions">
+                    <button class="btn btn-sm btn-danger" onclick="deleteBooking('${e._id}')">${t('admin_btn_delete')}</button>
+                </td>
+            </tr>`;
+        }).join('') || `<tr><td colspan="6">${t('admin_no_bookings')}</td></tr>`;
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="6" style="color:red">${apiError(e)}</td></tr>`;
+    }
+}
+
+document.getElementById('btnBookingsFilter').addEventListener('click', loadBookings);
+
+window.deleteBooking = async (id) => {
+    if (!confirm(t('admin_confirm_delete_booking'))) return;
+    try {
+        await axios.delete(`/admin/events/${id}`);
+        loadBookings();
     } catch (e) { alert(apiError(e)); }
 };
 

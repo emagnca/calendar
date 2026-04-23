@@ -6,6 +6,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const fs   = require('fs');
 
 const serverless = require('serverless-http');
 const ApiCalendar = require('./api');
@@ -18,7 +19,10 @@ app.use(cors());
 app.use(express.json());
 
 // Serve client static files (must be before SPA catch-all routes)
-app.use(express.static(path.join(__dirname, 'client')));
+const clientRoot = fs.existsSync(path.join(__dirname, 'client'))
+    ? path.join(__dirname, 'client')
+    : path.join(__dirname, '../client');
+app.use(express.static(clientRoot));
 
 // Mount API
 new ApiCalendar().expose(app);

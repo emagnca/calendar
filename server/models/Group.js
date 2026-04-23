@@ -11,7 +11,10 @@ const groupSchema = new mongoose.Schema({
     public: {
         type: Boolean,
         default: false
-    }
+    },
+    adminName:  { type: String, trim: true, default: null },
+    adminEmail: { type: String, trim: true, lowercase: true, default: null },
+    adminPhone: { type: String, trim: true, default: null }
 }, {
     timestamps: true
 });

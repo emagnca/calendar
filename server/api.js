@@ -4,13 +4,20 @@ const express = require('express');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 const { logMethodEntry, logMethodExit } = require('./utils/logger');
-const { sendEmail } = require('./utils/messenger');
+const { sendEmail, sendSms } = require('./utils/messenger');
 const { getSecret } = require('./utils/utils');
+
+const crypto = require('crypto');
+const fs = require('fs');
+const clientRoot = fs.existsSync(path.join(__dirname, 'client'))
+    ? path.join(__dirname, 'client')
+    : path.join(__dirname, '../client');
 
 const Resource = require('./models/Resource');
 const Event = require('./models/Event');
 const User = require('./models/User');
 const Group = require('./models/Group');
+const GroupRegistration = require('./models/GroupRegistration');
 const auth = require('./middleware/auth');
 
 class ApiCalendar {
@@ -59,10 +66,89 @@ class ApiCalendar {
         return slots;
     };
 
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    // Called when both email and SMS are confirmed
+    async finalizeRegistration(reg) {
+        const existing = await Group.findOne({ name: reg.groupName });
+        if (!existing) {
+            await Group.create({
+                name:       reg.groupName,
+                public:     reg.isPublic || false,
+                adminName:  reg.adminName,
+                adminEmail: reg.adminEmail,
+                adminPhone: reg.adminPhone
+            });
+        }
+        const existingUser = await User.findOne({ email: reg.adminEmail });
+        if (!existingUser) {
+            const user = new User({
+                email:   reg.adminEmail,
+                name:    reg.adminName,
+                group:   reg.groupName,
+                role:    'admin',
+                isActive: true
+            });
+            await user.save();
+        }
+        reg.status = 'complete';
+        await reg.save();
+    }
+
     // ── Routes ────────────────────────────────────────────────────────────────
 
     expose = (app) => {
         const router = express.Router();
+
+        // Group self-registration
+        router.post('/group-registration', async (req, res) => {
+            try {
+                const { groupName, adminName, adminEmail, adminPhone, isPublic } = req.body;
+                if (!groupName || !adminName || !adminEmail || !adminPhone)
+                    return res.status(400).json({ error: 'All fields are required' });
+
+                const name = groupName.trim().toLowerCase().replace(/\s+/g, '-');
+                if (await Group.findOne({ name }))
+                    return res.status(400).json({ error: 'Group name already taken' });
+                if (await GroupRegistration.findOne({ groupName: name, status: 'pending' }))
+                    return res.status(400).json({ error: 'A pending registration already exists for this group' });
+
+                const regToken  = crypto.randomBytes(16).toString('hex');
+                const emailCode = Math.floor(100000 + Math.random() * 900000).toString();
+                const smsCode   = Math.floor(100000 + Math.random() * 900000).toString();
+
+                await GroupRegistration.create({
+                    groupName: name, adminName, adminEmail, adminPhone,
+                    isPublic: !!isPublic, regToken, emailCode, smsCode
+                });
+
+                await sendEmail(
+                    adminEmail,
+                    `Din verifieringskod för Resursbokning är: <strong>${emailCode}</strong>`,
+                    'Din verifieringskod – Resursbokning'
+                ).catch(e => console.warn('sendEmail failed (non-fatal):', e.message));
+                await sendSms(adminPhone, 'Resursbokning', `Din verifieringskod är: ${smsCode}`)
+                    .catch(e => console.warn('sendSms failed (non-fatal):', e.message));
+
+                res.json({ token: regToken });
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        router.post('/group-registration/confirm', async (req, res) => {
+            try {
+                const { token, emailCode, smsCode } = req.body;
+                const reg = await GroupRegistration.findOne({ regToken: token, status: 'pending' });
+                if (!reg) return res.status(404).json({ error: 'Invalid or expired token' });
+
+                const errors = {};
+                if (reg.emailCode !== emailCode) errors.email = 'Felaktig e-postkod';
+                if (reg.smsCode   !== smsCode)   errors.sms   = 'Felaktig SMS-kod';
+                if (Object.keys(errors).length)  return res.status(400).json({ error: errors });
+
+                await this.finalizeRegistration(reg);
+                res.json({ groupName: reg.groupName });
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
 
         // Health
         router.get('/health', (req, res) => {
@@ -106,7 +192,8 @@ class ApiCalendar {
                 user.loginCode = code;
                 user.loginCodeExpiry = new Date(Date.now() + 10 * 60 * 1000);
                 await user.save();
-                await sendEmail(email, `Din inloggningskod är: <strong>${code}</strong>`, 'Din inloggningskod');
+                await sendEmail(email, `Din inloggningskod är: <strong>${code}</strong>`, 'Din inloggningskod')
+                    .catch(e => console.warn('sendEmail failed (non-fatal):', e.message));
                 logMethodExit(methodName, { userId: user._id });
                 res.json({ message: 'Code sent' });
             } catch (error) {
@@ -213,7 +300,7 @@ class ApiCalendar {
                 const query = { status: 'confirmed', group: req.group.name };
                 if (startDate && endDate) query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
                 if (resourceId) query.resourceId = resourceId;
-                const events = await Event.find(query);
+                const events = await Event.find(query).select('-userId -userEmail');
                 logMethodExit(methodName, events);
                 res.json(events);
             } catch (error) {
@@ -469,6 +556,31 @@ class ApiCalendar {
             } catch (e) { res.status(400).json({ error: e.message }); }
         });
 
+        // Bookings (admin+)
+        adminRouter.get('/events', requireRole('admin', 'superadmin'), adminGroupScope, async (req, res) => {
+            try {
+                const { startDate, endDate, resourceId } = req.query;
+                const query = { group: req.group.name };
+                if (startDate) query.date = { $gte: new Date(startDate) };
+                if (endDate)   query.date = { ...query.date, $lte: new Date(endDate) };
+                if (resourceId) query.resourceId = resourceId;
+                const events = await Event.find(query).sort({ date: -1, time: 1 });
+                res.json(events);
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        adminRouter.delete('/events/:id', requireRole('admin', 'superadmin'), async (req, res) => {
+            try {
+                const event = await Event.findById(req.params.id);
+                if (!event) return res.status(404).json({ error: 'Booking not found' });
+                if (req.adminUser.role !== 'superadmin' && event.group !== req.adminUser.group) {
+                    return res.status(403).json({ error: 'Admins can only delete bookings in their group' });
+                }
+                await event.deleteOne();
+                res.json({ message: 'Booking deleted' });
+            } catch (e) { res.status(400).json({ error: e.message }); }
+        });
+
         // Users (admin+)
         adminRouter.get('/users', requireRole('admin', 'superadmin'), adminGroupScope, async (req, res) => {
             try {
@@ -525,18 +637,26 @@ class ApiCalendar {
         app.use(router);
         app.use('/api/admin', adminRouter);
 
+        // Serve group registration page
+        app.get('/register', (req, res) => {
+            res.sendFile(path.join(clientRoot, 'register/index.html'));
+        });
+        app.get('/register/confirm-email', (req, res) => {
+            res.sendFile(path.join(clientRoot, 'register/index.html'));
+        });
+
         // Serve SPA for /<groupname> routes
         app.get('/:group', async (req, res, next) => {
             const groupName = req.params.group.toLowerCase();
             if (groupName === 'admin') return next();
             const group = await Group.findOne({ name: groupName });
             if (!group) return next();
-            res.sendFile(path.join(__dirname, 'client/index.html'));
+            res.sendFile(path.join(clientRoot, 'index.html'));
         });
 
         // Serve admin SPA
         app.get('/admin/:group', (req, res) => {
-            res.sendFile(path.join(__dirname, 'client/admin/index.html'));
+            res.sendFile(path.join(clientRoot, 'admin/index.html'));
         });
     };
 }
