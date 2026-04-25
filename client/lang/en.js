@@ -2,6 +2,27 @@ const en = {
     // App
     app_title: 'Resource Booking',
 
+    // Landing page
+    landing_welcome_title: 'Welcome to Resursbokning',
+    landing_welcome_desc: 'A modern resource booking system designed to simplify scheduling and resource management. Select or create a group to get started.',
+    landing_features_title: 'Features',
+    landing_feature_1: '📅 Easy calendar-based booking',
+    landing_feature_2: '👥 Group-based resource management',
+    landing_feature_3: '🔐 Secure authentication',
+    landing_feature_4: '📧 Email notifications',
+    landing_feature_5: '⚙️ Admin dashboard',
+    landing_calendar_title: 'Calendar Interface',
+    landing_calendar_desc: 'Intuitive calendar view for browsing and booking resources:',
+    landing_admin_title: 'Admin Dashboard',
+    landing_admin_desc: 'Manage resources and bookings with our comprehensive admin interface:',
+    landing_cta_title: 'Get Started',
+    landing_cta_desc: 'Enter a group name to access the booking system:',
+    landing_input_placeholder: 'Enter group name...',
+    landing_go_button: 'Go to Group',
+    landing_hint: 'Or create a new group by registering as an admin.',
+    landing_image_error_calendar: 'Unable to load calendar interface image',
+    landing_image_error_admin: 'Unable to load admin interface image',
+
     // Nav / header
     logout: 'Log out',
 

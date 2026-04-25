@@ -2,6 +2,27 @@ const sv = {
     // App
     app_title: 'Resursbokning',
 
+    // Landing page
+    landing_welcome_title: 'Välkommen till Resursbokning',
+    landing_welcome_desc: 'Ett modernt system för resursbokning utformat för att förenkla schemaläggning och resurshantering. Välj eller skapa en grupp för att komma igång.',
+    landing_features_title: 'Funktioner',
+    landing_feature_1: '📅 Enkel kalenderbaserad bokning',
+    landing_feature_2: '👥 Gruppbaserad resurshantering',
+    landing_feature_3: '🔐 Säker autentisering',
+    landing_feature_4: '📧 E-postmeddelanden',
+    landing_feature_5: '⚙️ Administratörsöversikt',
+    landing_calendar_title: 'Kalendergränssnitt',
+    landing_calendar_desc: 'Intuitivt kalendervy för att bläddra och boka resurser:',
+    landing_admin_title: 'Administratörsöversikt',
+    landing_admin_desc: 'Hantera resurser och bokningar med vår omfattande administratörsöversikt:',
+    landing_cta_title: 'Kom igång',
+    landing_cta_desc: 'Ange ett gruppnamn för att komma åt bokningssystemet:',
+    landing_input_placeholder: 'Ange gruppnamn...',
+    landing_go_button: 'Gå till grupp',
+    landing_hint: 'Eller skapa en ny grupp genom att registrera dig som administratör.',
+    landing_image_error_calendar: 'Det gick inte att ladda kalendergränssnittsbilden',
+    landing_image_error_admin: 'Det gick inte att ladda administratörsöversiktbilden',
+
     // Nav / header
     logout: 'Logga ut',
 

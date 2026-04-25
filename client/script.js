@@ -1566,6 +1566,79 @@ function displayMyBookings(bookings) {
 }
 
 
+// Show landing page with service information and screenshots
+function showLandingPage() {
+    // Hide main calendar UI
+    document.querySelector('.container').style.display = 'none';
+    document.querySelector('.resources-section').style.display = 'none';
+    
+    // Show landing page
+    const landingPage = document.getElementById('landingPage');
+    landingPage.style.display = 'block';
+    
+    // Translate all landing page elements
+    const landingElements = landingPage.querySelectorAll('[data-i18n]');
+    landingElements.forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        el.textContent = t(key);
+    });
+    
+    // Handle placeholder translation
+    const groupInput = document.getElementById('groupInput');
+    const placeholderKey = groupInput.getAttribute('data-i18n-placeholder');
+    if (placeholderKey) {
+        groupInput.placeholder = t(placeholderKey);
+    }
+    
+    // Load images from AWS Lambda endpoints
+    const calendarImageUrl = 'https://mr3xmgyqnxzrszocyvutnjknty0eodkp.lambda-url.eu-north-1.on.aws/brf8';
+    const adminImageUrl = 'https://mr3xmgyqnxzrszocyvutnjknty0eodkp.lambda-url.eu-north-1.on.aws/admin/brf8';
+    
+    const calendarImg = document.getElementById('calendarImage');
+    const adminImg = document.getElementById('adminImage');
+    
+    // Load calendar image
+    calendarImg.classList.add('loading');
+    calendarImg.src = calendarImageUrl;
+    calendarImg.onerror = () => {
+        calendarImg.classList.remove('loading');
+        calendarImg.style.display = 'none';
+        calendarImg.parentElement.innerHTML = `<p style="color: #999; text-align: center; padding: 20px;">${t('landing_image_error_calendar')}</p>`;
+    };
+    calendarImg.onload = () => {
+        calendarImg.classList.remove('loading');
+    };
+    
+    // Load admin image
+    adminImg.classList.add('loading');
+    adminImg.src = adminImageUrl;
+    adminImg.onerror = () => {
+        adminImg.classList.remove('loading');
+        adminImg.style.display = 'none';
+        adminImg.parentElement.innerHTML = `<p style="color: #999; text-align: center; padding: 20px;">${t('landing_image_error_admin')}</p>`;
+    };
+    adminImg.onload = () => {
+        adminImg.classList.remove('loading');
+    };
+    
+    // Set up group navigation
+    const goToGroupBtn = document.getElementById('goToGroupBtn');
+    
+    const navigateToGroup = () => {
+        const groupName = groupInput.value.trim().toLowerCase().replace(/\s+/g, '-');
+        if (groupName) {
+            window.location.href = `/${groupName}`;
+        }
+    };
+    
+    goToGroupBtn.addEventListener('click', navigateToGroup);
+    groupInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            navigateToGroup();
+        }
+    });
+}
+
 let _initDone = false;
 // Initialize when DOM is loaded
 async function init() {
@@ -1578,9 +1651,9 @@ async function init() {
     // Update user info display
     updateUserInfo();
 
-    // No group in URL — show an error
+    // No group in URL — show landing page
     if (!currentGroup) {
-        document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;"><h2>No group specified</h2><p>Please access the calendar via <code>/&lt;groupname&gt;</code>.</p></div>';
+        showLandingPage();
         return;
     }
 

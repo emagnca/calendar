@@ -108,6 +108,60 @@
         <div id="resourceList" class="resource-list"></div>
     </div>
 
+    <!-- Landing Page -->
+    <div id="landingPage" class="landing-page" style="display: none;">
+        <div class="landing-container">
+            <div class="landing-header">
+                <h1 data-i18n="app_title">Resursbokning</h1>
+                <p class="landing-subtitle" data-i18n="app_title">Resursbokning</p>
+            </div>
+            
+            <div class="landing-content">
+                <section class="landing-section">
+                    <h2 data-i18n="landing_welcome_title">Welcome to Resursbokning</h2>
+                    <p data-i18n="landing_welcome_desc">A modern resource booking system designed to simplify scheduling and resource management. Select or create a group to get started.</p>
+                </section>
+
+                <section class="landing-section">
+                    <h2 data-i18n="landing_features_title">Features</h2>
+                    <ul class="features-list">
+                        <li data-i18n="landing_feature_1">📅 Easy calendar-based booking</li>
+                        <li data-i18n="landing_feature_2">👥 Group-based resource management</li>
+                        <li data-i18n="landing_feature_3">🔐 Secure authentication</li>
+                        <li data-i18n="landing_feature_4">📧 Email notifications</li>
+                        <li data-i18n="landing_feature_5">⚙️ Admin dashboard</li>
+                    </ul>
+                </section>
+
+                <section class="landing-section">
+                    <h2 data-i18n="landing_calendar_title">Calendar Interface</h2>
+                    <p data-i18n="landing_calendar_desc">Intuitive calendar view for browsing and booking resources:</p>
+                    <div class="landing-image-container">
+                        <img id="calendarImage" src="" alt="Calendar Interface" class="landing-image" />
+                    </div>
+                </section>
+
+                <section class="landing-section">
+                    <h2 data-i18n="landing_admin_title">Admin Dashboard</h2>
+                    <p data-i18n="landing_admin_desc">Manage resources and bookings with our comprehensive admin interface:</p>
+                    <div class="landing-image-container">
+                        <img id="adminImage" src="" alt="Admin Interface" class="landing-image" />
+                    </div>
+                </section>
+
+                <section class="landing-section cta-section">
+                    <h2 data-i18n="landing_cta_title">Get Started</h2>
+                    <p data-i18n="landing_cta_desc">Enter a group name to access the booking system:</p>
+                    <div class="landing-input-group">
+                        <input type="text" id="groupInput" placeholder="Enter group name..." class="landing-input" data-i18n-placeholder="landing_input_placeholder" />
+                        <button id="goToGroupBtn" class="landing-button" data-i18n="landing_go_button">Go to Group</button>
+                    </div>
+                    <p class="landing-hint" data-i18n="landing_hint">Or create a new group by registering as an admin.</p>
+                </section>
+            </div>
+        </div>
+    </div>
+
 <script src="script.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
