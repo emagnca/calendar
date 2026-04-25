@@ -124,10 +124,10 @@ class ApiCalendar {
 
                 await sendEmail(
                     adminEmail,
-                    `Din verifieringskod för Resursbokning är: <strong>${emailCode}</strong>`,
-                    'Din verifieringskod – Resursbokning'
+                    `Din verifieringskod för EasyBooking är: <strong>${emailCode}</strong>`,
+                    'Din verifieringskod – EasyBooking'
                 ).catch(e => console.warn('sendEmail failed (non-fatal):', e.message));
-                await sendSms(adminPhone, 'Resursbokning', `Din verifieringskod är: ${smsCode}`)
+                await sendSms(adminPhone, 'EasyBooking', `Din verifieringskod är: ${smsCode}`)
                     .catch(e => console.warn('sendSms failed (non-fatal):', e.message));
 
                 res.json({ token: regToken });

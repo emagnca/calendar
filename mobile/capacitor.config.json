@@ -1,0 +1,8 @@
+{
+  "appId": "com.easybooking.app",
+  "appName": "EasyBooking",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}

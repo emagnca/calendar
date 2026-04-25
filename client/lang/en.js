@@ -1,16 +1,18 @@
 const en = {
     // App
-    app_title: 'Resource Booking',
+    app_title: 'EasyBooking',
 
     // Landing page
-    landing_welcome_title: 'Welcome to Resursbokning',
-    landing_welcome_desc: 'A modern resource booking system designed to simplify scheduling and resource management. Select or create a group to get started.',
+    landing_welcome_title: 'Welcome to EasyBooking',
+    landing_welcome_desc: 'EasyBooking is a modern system designed to simplify scheduling and resource management. Select or create a group to get started.',
     landing_features_title: 'Features',
     landing_feature_1: '📅 Easy calendar-based booking',
     landing_feature_2: '👥 Group-based resource management',
-    landing_feature_3: '🔐 Secure authentication',
+    landing_feature_3: '🔐 Simple authentication',
     landing_feature_4: '📧 Email notifications',
     landing_feature_5: '⚙️ Admin dashboard',
+    landing_feature_6: '🔓 Public or private calendars',
+    landing_feature_7: '🏠 Book any type of resource — rooms, equipment, people ...',
     landing_calendar_title: 'Calendar Interface',
     landing_calendar_desc: 'Intuitive calendar view for browsing and booking resources:',
     landing_admin_title: 'Admin Dashboard',

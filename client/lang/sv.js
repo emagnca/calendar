@@ -1,16 +1,18 @@
 const sv = {
     // App
-    app_title: 'Resursbokning',
+    app_title: 'EasyBooking',
 
     // Landing page
-    landing_welcome_title: 'Välkommen till Resursbokning',
-    landing_welcome_desc: 'Ett modernt system för resursbokning utformat för att förenkla schemaläggning och resurshantering. Välj eller skapa en grupp för att komma igång.',
+    landing_welcome_title: 'Välkommen till EasyBooking',
+    landing_welcome_desc: 'EasyBooking är ett modernt system utformat för att förenkla schemaläggning och resurshantering. Välj eller skapa en grupp för att komma igång.',
     landing_features_title: 'Funktioner',
     landing_feature_1: '📅 Enkel kalenderbaserad bokning',
     landing_feature_2: '👥 Gruppbaserad resurshantering',
-    landing_feature_3: '🔐 Säker autentisering',
+    landing_feature_3: '🔐 Enkel autentisering',
     landing_feature_4: '📧 E-postmeddelanden',
     landing_feature_5: '⚙️ Administratörsöversikt',
+    landing_feature_6: '🔓 Publika eller privata kalendrar',
+    landing_feature_7: '🏠 Boka vad som helst — rum, utrustning, personal ...',
     landing_calendar_title: 'Kalendergränssnitt',
     landing_calendar_desc: 'Intuitivt kalendervy för att bläddra och boka resurser:',
     landing_admin_title: 'Administratörsöversikt',

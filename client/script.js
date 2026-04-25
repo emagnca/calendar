@@ -1590,9 +1590,9 @@ function showLandingPage() {
         groupInput.placeholder = t(placeholderKey);
     }
     
-    // Load images from AWS Lambda endpoints
-    const calendarImageUrl = 'https://mr3xmgyqnxzrszocyvutnjknty0eodkp.lambda-url.eu-north-1.on.aws/brf8';
-    const adminImageUrl = 'https://mr3xmgyqnxzrszocyvutnjknty0eodkp.lambda-url.eu-north-1.on.aws/admin/brf8';
+    // Load images from client/public
+    const calendarImageUrl = '/public/bookingpage.png';
+    const adminImageUrl    = '/public/adminpage.png';
     
     const calendarImg = document.getElementById('calendarImage');
     const adminImg = document.getElementById('adminImage');

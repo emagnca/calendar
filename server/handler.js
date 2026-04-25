@@ -15,7 +15,9 @@ const { getSecret } = require('./utils/utils');
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: ['capacitor://localhost', 'http://localhost', /\.lambda-url\.eu-north-1\.on\.aws$/]
+}));
 app.use(express.json());
 
 // Serve client static files (must be before SPA catch-all routes)

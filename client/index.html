@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <base href="/">
-    <title>Resursbokning</title>
+    <title>EasyBooking</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="lang/sv.js"></script>
@@ -27,7 +27,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1 data-i18n="app_title">Resursbokning</h1>
+            <h1 data-i18n="app_title">EasyBooking</h1>
             <div style="display:flex;align-items:center;gap:8px">
                 <select id="langPicker" class="lang-picker">
                     <option value="sv">🇸🇪 Svenska</option>
@@ -112,13 +112,13 @@
     <div id="landingPage" class="landing-page" style="display: none;">
         <div class="landing-container">
             <div class="landing-header">
-                <h1 data-i18n="app_title">Resursbokning</h1>
-                <p class="landing-subtitle" data-i18n="app_title">Resursbokning</p>
+                <h1 data-i18n="app_title">EasyBooking</h1>
+                <!--p class="landing-subtitle" data-i18n="app_title">EasyBooking</p-->
             </div>
             
             <div class="landing-content">
                 <section class="landing-section">
-                    <h2 data-i18n="landing_welcome_title">Welcome to Resursbokning</h2>
+                    <h2 data-i18n="landing_welcome_title">Welcome to EasyBooking</h2>
                     <p data-i18n="landing_welcome_desc">A modern resource booking system designed to simplify scheduling and resource management. Select or create a group to get started.</p>
                 </section>
 
@@ -130,6 +130,8 @@
                         <li data-i18n="landing_feature_3">🔐 Secure authentication</li>
                         <li data-i18n="landing_feature_4">📧 Email notifications</li>
                         <li data-i18n="landing_feature_5">⚙️ Admin dashboard</li>
+                        <li data-i18n="landing_feature_6">🔓 Public or private calendars</li>
+                        <li data-i18n="landing_feature_7">🏠 Book any type of resource — rooms, equipment, and more</li>
                     </ul>
                 </section>
 
@@ -156,7 +158,10 @@
                         <input type="text" id="groupInput" placeholder="Enter group name..." class="landing-input" data-i18n-placeholder="landing_input_placeholder" />
                         <button id="goToGroupBtn" class="landing-button" data-i18n="landing_go_button">Go to Group</button>
                     </div>
-                    <p class="landing-hint" data-i18n="landing_hint">Or create a new group by registering as an admin.</p>
+                    <div class="landing-register-block">
+                        <p class="landing-hint" data-i18n="landing_hint">Or create a new group by registering as an admin.</p>
+                        <a href="/register" class="landing-register-btn" data-i18n="link_register">Register new group</a>
+                    </div>
                 </section>
             </div>
         </div>

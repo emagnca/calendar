@@ -1,0 +1,165 @@
+const es = {
+    // App
+    app_title: 'Reserva de recursos',
+
+    // Nav / header
+    logout: 'Cerrar sesión',
+
+    // Calendar weekdays
+    day_sun: 'Dom', day_mon: 'Lun', day_tue: 'Mar', day_wed: 'Mié',
+    day_thu: 'Jue', day_fri: 'Vie', day_sat: 'Sáb',
+
+    // Calendar months
+    months: ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+             'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'],
+
+    // Sections
+    resources_title: 'Recursos disponibles',
+    bookings_title: 'Reservas actuales',
+    admin_label_group: 'Grupo',
+    // Resource cards
+    no_resources: 'No hay recursos disponibles.',
+    card_click_hint: 'Haz clic para seleccionar',
+    card_selected: '✓ Seleccionado — haz clic en un día para reservar',
+
+    // Booking modal step 1
+    step1_title: 'Seleccionar recurso',
+    select_resource_label: 'Seleccionar recurso:',
+    select_resource_placeholder: 'Selecciona un recurso...',
+    btn_next: 'Siguiente',
+
+    // Booking modal step 2
+    step2_title: 'Seleccionar horario',
+    select_time_label: 'Seleccionar horario:',
+    btn_back: 'Atrás',
+    btn_book: 'Reservar',
+
+    // Day view
+    select_resource_instruction: 'Selecciona un recurso para ver los horarios disponibles:',
+    available_times_title: 'Horarios disponibles',
+    btn_book_slot: 'Reservar',
+    btn_cancel_booking: 'Cancelar reserva',
+    label_booked: 'Reservado',
+
+    // Inline booking
+    booking_duration: 'Duración de la reserva: {0} minutos',
+    available_hours: 'Disponible: {0} - {1}',
+    available_times_inline: 'Horarios disponibles',
+    no_slots_today: 'No hay horarios disponibles para este recurso hoy.',
+    btn_cancel: 'Cancelar',
+
+    // Resource info in modal
+    resource_duration: 'Duración de la reserva: {0} minutos',
+    resource_available: 'Disponible: {0} - {1}',
+
+    // Login form
+    login_title: 'Iniciar sesión',
+    label_email: 'Correo electrónico:',
+    btn_send_code: 'Enviar código por correo',
+    btn_sending: 'Enviando...',
+    btn_resend_code: 'Enviar nuevo código',
+    label_code: 'Código:',
+    placeholder_code: 'Código de 6 dígitos',
+    btn_login: 'Iniciar sesión',
+    text_no_account: '¿No tienes cuenta?',
+    link_register: 'Registrarse',
+
+    // Register form
+    register_title: 'Registro',
+    label_name: 'Nombre:',
+    label_password: 'Contraseña:',
+    btn_register: 'Registrarse',
+    text_have_account: '¿Ya tienes cuenta?',
+    link_login: 'Iniciar sesión',
+
+    // My bookings
+    my_bookings_title: 'Mis reservas',
+    no_upcoming_bookings: 'No tienes reservas próximas.',
+
+    // Alerts / confirms
+    alert_enter_email: 'Por favor, introduce tu dirección de correo primero.',
+    alert_send_code_failed: 'No se pudo enviar el código',
+    alert_login_failed: 'Error al iniciar sesión',
+    alert_registration_failed: 'Error en el registro',
+    confirm_cancel_booking: '¿Estás seguro de que quieres cancelar esta reserva?',
+    alert_booking_confirmed: '¡Reserva confirmada!',
+    alert_slot_already_booked: '¡Este horario ya está reservado!',
+    alert_error_booking: 'Error al crear la reserva. Por favor, inténtalo de nuevo.',
+    alert_error_loading_resources: 'Error al cargar los recursos. Por favor, inténtalo de nuevo.',
+    alert_no_resources: 'No hay recursos disponibles. Por favor, añade recursos al sistema.',
+    alert_error_init: 'Error al inicializar el calendario. Por favor, recarga la página.',
+    alert_error_day_view: 'Error al cargar la vista diaria. Por favor, inténtalo de nuevo.',
+    alert_error_availability: 'Error al cargar la disponibilidad',
+    alert_error_resource_info: 'Error al cargar la información del recurso.',
+    alert_error_bookings: 'Error al cargar las reservas. Por favor, inténtalo de nuevo.',
+
+    // Admin
+    admin_login_title: 'Inicio de sesión de administrador',
+    admin_label_code: 'Código de acceso',
+    admin_btn_send_code: 'Enviar código de acceso',
+    admin_btn_login: 'Entrar',
+    admin_err_enter_email: 'Introduce tu dirección de correo.',
+    admin_err_send_code: 'Error al enviar el código.',
+    admin_err_invalid_code: 'Código inválido.',
+    admin_err_access_denied: 'Acceso denegado: se requiere rol de administrador.',
+    admin_nav_resources: 'Recursos',
+    admin_nav_users: 'Usuarios',
+    admin_nav_bookings: 'Reservas',
+    admin_nav_groups: 'Grupos',
+    admin_btn_filter: 'Filtrar',
+    admin_th_date: 'Fecha',
+    admin_th_time: 'Hora',
+    admin_th_resource: 'Recurso',
+    admin_th_status: 'Estado',
+    admin_no_bookings: 'No se encontraron reservas.',
+    admin_confirm_delete_booking: '¿Eliminar esta reserva?',
+    admin_btn_add_resource: '+ Añadir recurso',
+    admin_btn_add_user: '+ Añadir usuario',
+    admin_btn_add_group: '+ Añadir grupo',
+    admin_btn_save: 'Guardar',
+    admin_btn_edit: 'Editar',
+    admin_btn_delete: 'Eliminar',
+    admin_loading: 'Cargando…',
+    admin_no_resources: 'No hay recursos.',
+    admin_no_users: 'No hay usuarios.',
+    admin_no_groups: 'No hay grupos.',
+    admin_th_id: 'ID',
+    admin_th_name: 'Nombre (sv / en)',
+    admin_th_slot: 'Intervalo (min)',
+    admin_th_hours: 'Horas',
+    admin_th_active: 'Activo',
+    admin_th_email: 'Correo',
+    admin_th_role: 'Rol',
+    admin_th_public: 'Público',
+    admin_th_actions: '',
+    admin_yes: 'Sí',
+    admin_no_val: 'No',
+    admin_field_resource_id: 'ID del recurso',
+    admin_hint_resource_id: 'Identificador único, p. ej. lavadora-1',
+    admin_field_name_sv: 'Nombre (sv)',
+    admin_field_name_en: 'Nombre (en)',
+    admin_field_name_fr: 'Nombre (fr)',
+    admin_field_name_es: 'Nombre (es)',
+    admin_field_desc_sv: 'Descripción (sv)',
+    admin_field_desc_en: 'Descripción (en)',
+    admin_field_desc_fr: 'Descripción (fr)',
+    admin_field_desc_es: 'Descripción (es)',
+    admin_field_slot_len: 'Duración del intervalo (min)',
+    admin_field_active: 'Activo',
+    admin_field_earliest: 'Inicio',
+    admin_field_latest: 'Fin',
+    admin_field_password: 'Contraseña',
+    admin_hint_password: '(dejar en blanco para mantener)',
+    admin_field_group_name: 'Nombre',
+    admin_hint_group_name: 'Minúsculas, sin espacios. Se usa en la URL.',
+    admin_field_group_public: 'Público (sin inicio de sesión requerido)',
+    admin_modal_add_resource: 'Añadir recurso',
+    admin_modal_edit_resource: 'Editar recurso',
+    admin_modal_add_user: 'Añadir usuario',
+    admin_modal_edit_user: 'Editar usuario',
+    admin_modal_add_group: 'Añadir grupo',
+    admin_modal_edit_group: 'Editar grupo',
+    admin_confirm_delete_resource: '¿Eliminar este recurso? Las reservas existentes se conservarán.',
+    admin_confirm_delete_user: '¿Eliminar este usuario? Esta acción no se puede deshacer.',
+    admin_confirm_delete_group: '¿Eliminar el grupo "{0}"? Sus recursos y usuarios NO serán eliminados.',
+};
