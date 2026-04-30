@@ -37,6 +37,10 @@ const resourceSchema = new mongoose.Schema({
     latest: {
         type: String,
         default: '17:00'
+    },
+    bookableDays: {
+        type: [Number],
+        default: [0, 1, 2, 3, 4, 5, 6]
     }
 }, {
     timestamps: true

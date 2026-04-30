@@ -61,8 +61,8 @@ const RESOURCES = [
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
-    //const raw = process.env.CAL_MONGODB || 'mongodb://localhost:27018/booking-calendar';
-    const raw = '{"url":"mongodb+srv://cluster-mmdok-shared.ic2fz.mongodb.net/booking-calendar","usr":"mmadmin","pwd":"q1BsBbxJquriFlk7"}';
+    const raw = process.env.CAL_MONGODB || 'mongodb://localhost:27018/booking-calendar';
+    //const raw = '{"url":"mongodb+srv://cluster-mmdok-shared.ic2fz.mongodb.net/booking-calendar","usr":"mmadmin","pwd":"q1BsBbxJquriFlk7"}';
     console.log("raw", raw);
     let uri;
     try {

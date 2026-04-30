@@ -224,7 +224,7 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
     try {
         // Get availability from server
         const dateStr = localDateStr(selectedDate);
-        const { resource: resourceDetails, availability } = await getResourceAvailability(resourceId, dateStr);
+        const { resource: resourceDetails, availability, notBookableDay } = await getResourceAvailability(resourceId, dateStr);
 
         // Determine which slots are in the past (only relevant when selected date is today)
         const now = new Date();
@@ -249,6 +249,10 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
 
         // Handle time slots display
         if (timeSlotsContainer) {
+            if (notBookableDay) {
+                timeSlotsContainer.innerHTML = `<p class="not-bookable-msg">${t('resource_not_bookable_day')}</p>`;
+                return;
+            }
             // Day view
             timeSlotsContainer.innerHTML = `
                 <h3>${t('available_times_title')}</h3>
@@ -280,17 +284,19 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
             // Modal view — exclude past slots
             const timeSlotSelect = document.getElementById('timeSlot');
             const nextButton = document.getElementById('nextStep');
-            
+
             if (timeSlotSelect) {
-                const availableSlots = availability.filter(slot => slot.isAvailable && !isSlotPast(slot.time));
-                timeSlotSelect.innerHTML = availableSlots.length > 0 ?
-                    availableSlots.map(slot => 
-                        `<option value="${slot.time}">${slot.time}</option>`
-                    ).join('') :
-                    `<option value="">${t('no_slots_today')}</option>`;
-                
-                if (nextButton) {
-                    nextButton.disabled = availableSlots.length === 0;
+                if (notBookableDay) {
+                    timeSlotSelect.innerHTML = `<option value="">${t('resource_not_bookable_day')}</option>`;
+                    if (nextButton) nextButton.disabled = true;
+                } else {
+                    const availableSlots = availability.filter(slot => slot.isAvailable && !isSlotPast(slot.time));
+                    timeSlotSelect.innerHTML = availableSlots.length > 0 ?
+                        availableSlots.map(slot =>
+                            `<option value="${slot.time}">${slot.time}</option>`
+                        ).join('') :
+                        `<option value="">${t('no_slots_today')}</option>`;
+                    if (nextButton) nextButton.disabled = availableSlots.length === 0;
                 }
             }
         }

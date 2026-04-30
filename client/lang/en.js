@@ -187,6 +187,8 @@ const en = {
     admin_field_active: 'Active',
     admin_field_earliest: 'Earliest',
     admin_field_latest: 'Latest',
+    admin_field_bookable_days: 'Bookable days',
+    resource_not_bookable_day: 'This resource is not available on the selected day.',
     admin_field_password: 'Password',
     admin_hint_password: '(leave blank to keep)',
     admin_field_group_name: 'Name',

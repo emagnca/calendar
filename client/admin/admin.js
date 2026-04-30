@@ -269,18 +269,28 @@ function resourceForm(r = {}) {
         <div class="field-row">
             <div class="field"><label>${t('admin_field_earliest')}</label><input id="f-earliest" value="${r.earliest || '09:00'}" placeholder="09:00"></div>
             <div class="field"><label>${t('admin_field_latest')}</label><input id="f-latest" value="${r.latest || '17:00'}" placeholder="17:00"></div>
+        </div>
+        <div class="field">
+            <label>${t('admin_field_bookable_days')}</label>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px">
+                ${[[1,'day_mon'],[2,'day_tue'],[3,'day_wed'],[4,'day_thu'],[5,'day_fri'],[6,'day_sat'],[0,'day_sun']].map(([n, key]) => {
+                    const chk = (!r.bookableDays || r.bookableDays.includes(n)) ? 'checked' : '';
+                    return `<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" class="f-bookableDay" value="${n}" ${chk}> ${t(key)}</label>`;
+                }).join('')}
+            </div>
         </div>`;
 }
 
 function collectResource() {
     return {
-        resourceId:  document.getElementById('f-resourceId').value.trim(),
-        name:        { sv: document.getElementById('f-nameSv').value.trim(), en: document.getElementById('f-nameEn').value.trim() },
-        description: { sv: document.getElementById('f-descSv').value.trim(), en: document.getElementById('f-descEn').value.trim() },
-        slot_length: parseInt(document.getElementById('f-slotLen').value, 10),
-        isActive:    document.getElementById('f-isActive').checked,
-        earliest:    document.getElementById('f-earliest').value.trim(),
-        latest:      document.getElementById('f-latest').value.trim(),
+        resourceId:   document.getElementById('f-resourceId').value.trim(),
+        name:         { sv: document.getElementById('f-nameSv').value.trim(), en: document.getElementById('f-nameEn').value.trim() },
+        description:  { sv: document.getElementById('f-descSv').value.trim(), en: document.getElementById('f-descEn').value.trim() },
+        slot_length:  parseInt(document.getElementById('f-slotLen').value, 10),
+        isActive:     document.getElementById('f-isActive').checked,
+        earliest:     document.getElementById('f-earliest').value.trim(),
+        latest:       document.getElementById('f-latest').value.trim(),
+        bookableDays: [...document.querySelectorAll('.f-bookableDay:checked')].map(cb => parseInt(cb.value, 10)),
     };
 }
 

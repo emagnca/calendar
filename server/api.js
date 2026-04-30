@@ -61,7 +61,8 @@ class ApiCalendar {
     getBookingConfig = (resource) => ({
         duration: resource.slot_length || 60,
         startTime: resource.earliest || '09:00',
-        endTime: resource.latest || '17:00'
+        endTime: resource.latest || '17:00',
+        bookableDays: resource.bookableDays && resource.bookableDays.length ? resource.bookableDays : [0,1,2,3,4,5,6]
     });
 
     generateTimeSlots = (startTime, endTime, duration) => {
@@ -388,6 +389,11 @@ class ApiCalendar {
                 const resource = await Resource.findOne({ resourceId: req.body.resourceId });
                 if (!resource) return res.status(404).json({ error: 'Resource not found' });
 
+                const bookableDays = resource.bookableDays && resource.bookableDays.length ? resource.bookableDays : [0,1,2,3,4,5,6];
+                if (!bookableDays.includes(new Date(req.body.date).getDay())) {
+                    return res.status(400).json({ error: 'Resource is not bookable on this day' });
+                }
+
                 const existingBooking = await Event.findOne({
                     resourceId: req.body.resourceId,
                     date: new Date(req.body.date),
@@ -460,13 +466,18 @@ class ApiCalendar {
                 const resource = await Resource.findOne({ resourceId, group: req.group.name });
                 if (!resource) return res.status(404).json({ error: 'Resource not found' });
 
+                const bookingConfig = this.getBookingConfig(resource);
+                const requestedDay = new Date(date).getDay();
+                if (!bookingConfig.bookableDays.includes(requestedDay)) {
+                    return res.json({ resource: { name: resource.name, description: resource.description, bookingConfig }, availability: [], notBookableDay: true });
+                }
+
                 const bookings = await Event.find({
                     resourceId,
                     group: req.group.name,
                     date: new Date(date)
                 }).populate('userId', 'email');
 
-                const bookingConfig = this.getBookingConfig(resource);
                 const timeSlots = this.generateTimeSlots(bookingConfig.startTime, bookingConfig.endTime, bookingConfig.duration);
 
                 const availability = timeSlots.map(time => {

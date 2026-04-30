@@ -187,6 +187,8 @@ const sv = {
     admin_field_active: 'Aktiv',
     admin_field_earliest: 'Tidigast',
     admin_field_latest: 'Senast',
+    admin_field_bookable_days: 'Bokningsbara dagar',
+    resource_not_bookable_day: 'Den här resursen är inte tillgänglig den valda dagen.',
     admin_field_password: 'Lösenord',
     admin_hint_password: '(lämna tomt för att behålla)',
     admin_field_group_name: 'Namn',
