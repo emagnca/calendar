@@ -58,10 +58,17 @@ async function init() {
     console.log('Connected to MongoDB');
 }
 
+const BINARY_TYPES = [
+    'image/png', 'image/jpeg', 'image/gif', 'image/webp',
+    'image/svg+xml', 'image/x-icon', 'image/*',
+    'font/woff', 'font/woff2', 'font/ttf', 'font/otf',
+    'application/octet-stream',
+];
+
 const handler = async (event, context) => {
     if (!initPromise) initPromise = init();
     await initPromise;
-    return serverless(app)(event, context);
+    return serverless(app, { binary: BINARY_TYPES })(event, context);
 };
 
 module.exports = { app, calendar: handler, init };

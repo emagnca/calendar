@@ -66,11 +66,18 @@ const eventSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+        required: false,
+        default: null
     },
     userEmail: {
         type: String,
-        required: true
+        required: false,
+        default: null
+    },
+    bookerName: {
+        type: String,
+        required: false,
+        default: null
     },
     date: {
         type: Date,

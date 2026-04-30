@@ -24,12 +24,6 @@ const en = {
     landing_hint: 'Or create a new group by registering as an admin.',
     landing_image_error_calendar: 'Unable to load calendar interface image',
     landing_image_error_admin: 'Unable to load admin interface image',
-    landing_group_not_found: 'Group \'{0}\' was not found.',
-    landing_group_register_prompt: 'Would you like to register \'{0}\' as a new group?',
-    link_admin_view: 'Admin',
-    admin_link_view_calendar: 'View Calendar',
-    landing_btn_register_group: 'Yes, register group',
-    landing_btn_dismiss: 'No, cancel',
 
     // Nav / header
     logout: 'Log out',
@@ -63,15 +57,6 @@ const en = {
     btn_back: 'Back',
     btn_book: 'Book',
 
-    // Public booker identification
-    booker_name_label: 'Your name:',
-    booker_name_placeholder: 'Enter your name',
-    booker_email_label: 'Your email:',
-    booker_email_placeholder: 'Enter your email address',
-    booker_info_title: 'Your details',
-    alert_booker_name_required: 'Please enter your name before booking.',
-    alert_booker_email_required: 'Please enter your email address before booking.',
-
     // Day view
     select_resource_instruction: 'Select a resource to see available time slots:',
     available_times_title: 'Available times',
@@ -93,19 +78,14 @@ const en = {
     // Login form
     login_title: 'Log in',
     label_email: 'Email:',
-    btn_send_code: 'Send code to email',
+    btn_send_code: 'Send code by email',
     btn_sending: 'Sending...',
-    btn_resend_code: 'Resend code',
+    btn_resend_code: 'Send new code',
     label_code: 'Code:',
     placeholder_code: '6-digit code',
     btn_login: 'Log in',
-    text_no_account: 'Don\'t have an account?',
+    text_no_account: "Don't have an account?",
     link_register: 'Register',
-
-    // Public login form
-    public_login_title: 'Identify yourself',
-    public_login_desc: 'Enter your name and email to receive a login code.',
-    alert_public_name_required: 'Please enter your name.',
 
     // Register form
     register_title: 'Register',

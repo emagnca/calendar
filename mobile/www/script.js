@@ -3,10 +3,9 @@ let selectedDate = null;
 let selectedResourceId = null;
 let resources = []; // Store resources from API
 let bookings = new Map(); // Store bookings: date -> [{resource, time}]
-let currentGroupInfo = null; // Populated after init()
 
 // Read group from URL path: /<groupname>
-const currentGroup = window.location.pathname.split('/').filter(Boolean)[0] || null;
+const currentGroup = window._mobileGroup || window.location.pathname.split('/').filter(Boolean)[0] || null;
 
 // Format a Date as YYYY-MM-DD in local time (avoids UTC timezone shift)
 function localDateStr(date) {
@@ -338,8 +337,6 @@ function initCalendar() {
     document.getElementById('nextStep')?.addEventListener('click', () => {
         document.getElementById('step1').style.display = 'none';
         document.getElementById('step2').style.display = 'block';
-        const bookerSection = document.getElementById('bookerInfoSection');
-        if (bookerSection) bookerSection.style.display = 'none';
     });
 
     document.getElementById('prevStep')?.addEventListener('click', () => {
@@ -821,54 +818,9 @@ async function showInlineBookingForm(container, time) {
     container.appendChild(form);
 }
 
-function getPublicBookerInfo() {
-    return new Promise((resolve) => {
-        const overlay = document.createElement('div');
-        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
-
-        const box = document.createElement('div');
-        box.style.cssText = 'background:#fff;border-radius:8px;padding:24px;width:90%;max-width:360px;box-shadow:0 4px 20px rgba(0,0,0,.3);';
-        box.innerHTML = `
-            <h3 style="margin:0 0 16px">${t('booker_info_title')}</h3>
-            <div style="margin-bottom:12px">
-                <label style="display:block;margin-bottom:4px;font-size:.9em">${t('booker_name_label')}</label>
-                <input id="_pbName" type="text" autocomplete="name" placeholder="${t('booker_name_placeholder')}"
-                    style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:1em">
-            </div>
-            <div style="margin-bottom:20px">
-                <label style="display:block;margin-bottom:4px;font-size:.9em">${t('booker_email_label')}</label>
-                <input id="_pbEmail" type="email" autocomplete="email" placeholder="${t('booker_email_placeholder')}"
-                    style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:1em">
-            </div>
-            <div style="display:flex;gap:8px;justify-content:flex-end">
-                <button id="_pbCancel" style="padding:8px 16px;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer">${t('btn_cancel')}</button>
-                <button id="_pbConfirm" style="padding:8px 16px;border:none;border-radius:4px;background:#007bff;color:#fff;cursor:pointer">${t('btn_book')}</button>
-            </div>`;
-
-        overlay.appendChild(box);
-        document.body.appendChild(overlay);
-
-        const nameInput  = box.querySelector('#_pbName');
-        const emailInput = box.querySelector('#_pbEmail');
-
-        const close = (result) => { document.body.removeChild(overlay); resolve(result); };
-
-        box.querySelector('#_pbCancel').addEventListener('click', () => close(null));
-        box.querySelector('#_pbConfirm').addEventListener('click', () => {
-            const name  = nameInput.value.trim();
-            const email = emailInput.value.trim();
-            if (!name)  { nameInput.focus();  return; }
-            if (!email) { emailInput.focus(); return; }
-            close({ name, email });
-        });
-
-        nameInput.focus();
-    });
-}
-
 async function handleInlineBooking(resource, time) {
     if (!selectedDate) return;
-
+    
     try {
         // Create booking through API
         await axios.post('/events', {
@@ -892,6 +844,7 @@ async function handleInlineBooking(resource, time) {
         
         // Show confirmation
         alert(t('alert_booking_confirmed'));
+        if (typeof window.offerCalendarAdd === 'function') { window.offerCalendarAdd(selectedDate, time, resource); }
     } catch (error) {
         if (error.response && error.response.status === 409) {
             alert(t('alert_slot_already_booked'));
@@ -945,7 +898,7 @@ async function handleBooking(event) {
 
     const resource = document.getElementById('resourceSelect').value;
     const time = document.getElementById('timeSlot').value;
-
+    
     try {
         // Create booking through API
         await axios.post('/events', {
@@ -960,6 +913,7 @@ async function handleBooking(event) {
         
         // Show confirmation
         alert(t('alert_booking_confirmed'));
+        if (typeof window.offerCalendarAdd === 'function') { window.offerCalendarAdd(selectedDate, time, resource); }
         
         // Refresh bookings for this date
         await fetchBookingsForMonth(currentDate);
@@ -1358,80 +1312,6 @@ try {
     localStorage.removeItem('currentUser');
 }
 
-// Show public-group login form (self-registration: any name + email + code)
-function showPublicLoginForm() {
-    const existing = document.getElementById('loginModal');
-    if (existing) existing.remove();
-
-    const modal = document.createElement('div');
-    modal.id = 'loginModal';
-    modal.className = 'modal';
-    modal.style.cssText = 'display:block;z-index:1000;';
-
-    const content = document.createElement('div');
-    content.className = 'modal-content';
-    content.innerHTML = `
-        <h2>${t('public_login_title')}</h2>
-        <p style="color:#666;margin-bottom:16px;font-size:.95em">${t('public_login_desc')}</p>
-        <form id="publicLoginForm">
-            <div class="form-group">
-                <label for="pubLoginName">${t('booker_name_label')}</label>
-                <input type="text" id="pubLoginName" autocomplete="name" required>
-            </div>
-            <div class="form-group">
-                <label for="pubLoginEmail">${t('label_email')}</label>
-                <input type="email" id="pubLoginEmail" autocomplete="email" required>
-            </div>
-            <button type="button" id="pubSendCodeBtn">${t('btn_send_code')}</button>
-            <div class="form-group" style="margin-top:12px;">
-                <label for="pubLoginCode">${t('label_code')}</label>
-                <input type="text" id="pubLoginCode" maxlength="6" placeholder="${t('placeholder_code')}">
-            </div>
-            <button type="submit">${t('btn_login')}</button>
-        </form>
-    `;
-    modal.appendChild(content);
-    document.body.appendChild(modal);
-
-    document.getElementById('pubSendCodeBtn').addEventListener('click', async () => {
-        const name  = document.getElementById('pubLoginName').value.trim();
-        const email = document.getElementById('pubLoginEmail').value.trim();
-        if (!name)  { alert(t('alert_public_name_required')); return; }
-        if (!email) { alert(t('alert_enter_email'));           return; }
-        const btn = document.getElementById('pubSendCodeBtn');
-        btn.disabled = true;
-        btn.textContent = t('btn_sending');
-        try {
-            await axios.post('/public-auth/send-code', { name, email, group: currentGroup });
-            btn.textContent = t('btn_resend_code');
-            btn.disabled = false;
-        } catch (err) {
-            alert(err.response?.data?.error || t('alert_send_code_failed'));
-            btn.textContent = t('btn_send_code');
-            btn.disabled = false;
-        }
-    });
-
-    document.getElementById('publicLoginForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('pubLoginEmail').value.trim();
-        const code  = document.getElementById('pubLoginCode').value.trim();
-        try {
-            const res = await axios.post('/public-auth/verify-code', { email, code, group: currentGroup });
-            authToken   = res.data.token;
-            currentUser = res.data.user;
-            localStorage.setItem('authToken', authToken);
-            localStorage.setItem('currentUser', JSON.stringify(currentUser));
-            axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
-            modal.remove();
-            updateUserInfo();
-            initializeCalendar();
-        } catch (err) {
-            alert(err.response?.data?.error || t('alert_login_failed'));
-        }
-    });
-}
-
 // Show login form
 function showLoginForm() {
     // Remove any existing login modal
@@ -1597,42 +1477,16 @@ function showRegisterForm() {
     });
 }
 
-// Decode JWT payload client-side (no verification — just for UI hints)
-function decodeJwtPayload(token) {
-    try { return JSON.parse(atob(token.split('.')[1])); } catch { return null; }
-}
-
 // Update user info display
 function updateUserInfo() {
     const userInfo = document.getElementById('userInfo');
     const userName = document.getElementById('userName');
-    const adminLink = document.getElementById('adminLink');
-
-    // Determine admin status from calendar auth OR a live adminToken in localStorage
-    const roleFromCalendar = currentUser && ['admin', 'superadmin'].includes(currentUser.role);
-    const adminPayload = !roleFromCalendar && decodeJwtPayload(localStorage.getItem('adminToken') || '');
-    const roleFromAdmin = adminPayload &&
-        ['admin', 'superadmin'].includes(adminPayload.role) &&
-        adminPayload.exp * 1000 > Date.now();
-    const isAdmin = roleFromCalendar || roleFromAdmin;
-
+    
     if (currentUser) {
-        userName.textContent = `${currentUser.name || currentUser.email}`;
-        userInfo.style.display = 'flex';
-    } else if (roleFromAdmin) {
-        userName.textContent = adminPayload.email || '';
+        userName.textContent = `${currentUser.name} (${currentUser.email})`;
         userInfo.style.display = 'flex';
     } else {
         userInfo.style.display = 'none';
-    }
-
-    if (adminLink) {
-        if (currentGroup && isAdmin) {
-            adminLink.href = `/admin/${currentGroup}`;
-            adminLink.style.display = '';
-        } else {
-            adminLink.style.display = 'none';
-        }
     }
 }
 
@@ -1650,12 +1504,8 @@ function handleLogout() {
     // Update UI
     updateUserInfo();
     
-    // Show appropriate login form
-    if (currentGroupInfo && currentGroupInfo.public) {
-        showPublicLoginForm();
-    } else {
-        showLoginForm();
-    }
+    // Show login form
+    showLoginForm();
 }
 
 // Initialize calendar after authentication
@@ -1775,52 +1625,20 @@ function showLandingPage() {
     
     // Set up group navigation
     const goToGroupBtn = document.getElementById('goToGroupBtn');
-    const statusMsg    = document.getElementById('groupStatusMsg');
-
-    const showGroupStatus = (html) => {
-        statusMsg.innerHTML = html;
-        statusMsg.style.display = 'block';
-    };
-
-    const navigateToGroup = async () => {
+    
+    const navigateToGroup = () => {
         const groupName = groupInput.value.trim().toLowerCase().replace(/\s+/g, '-');
-        if (!groupName) return;
-
-        statusMsg.style.display = 'none';
-        goToGroupBtn.disabled = true;
-
-        try {
-            await axios.get(`/groups/${groupName}`);
+        if (groupName) {
             window.location.href = `/${groupName}`;
-        } catch (err) {
-            goToGroupBtn.disabled = false;
-            if (err.response?.status === 404) {
-                const notFound  = t('landing_group_not_found').replace('{0}', groupName);
-                const prompt    = t('landing_group_register_prompt').replace('{0}', groupName);
-                const btnYes    = t('landing_btn_register_group');
-                const btnNo     = t('landing_btn_dismiss');
-                showGroupStatus(`
-                    <p style="margin:0 0 8px;color:#555">${notFound}</p>
-                    <p style="margin:0 0 12px;color:#333;font-weight:500">${prompt}</p>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap">
-                        <button id="groupRegisterYes" style="padding:8px 16px;background:#007bff;color:#fff;border:none;border-radius:4px;cursor:pointer">${btnYes}</button>
-                        <button id="groupRegisterNo"  style="padding:8px 16px;background:#fff;color:#555;border:1px solid #ccc;border-radius:4px;cursor:pointer">${btnNo}</button>
-                    </div>`);
-                document.getElementById('groupRegisterYes').addEventListener('click', () => { window.location.href = '/register'; });
-                document.getElementById('groupRegisterNo').addEventListener('click', () => {
-                    showGroupStatus(`<p style="color:#c00;margin:0">${notFound}</p>`);
-                });
-            } else {
-                showGroupStatus(`<p style="color:#c00;margin:0">${err.response?.data?.error || err.message}</p>`);
-            }
         }
     };
-
+    
     goToGroupBtn.addEventListener('click', navigateToGroup);
     groupInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') navigateToGroup();
+        if (e.key === 'Enter') {
+            navigateToGroup();
+        }
     });
-    groupInput.addEventListener('input', () => { statusMsg.style.display = 'none'; });
 }
 
 let _initDone = false;
@@ -1846,7 +1664,6 @@ async function init() {
     try {
         const res = await axios.get(`/groups/${currentGroup}`);
         groupInfo = res.data;
-        currentGroupInfo = groupInfo;
     } catch (e) {
         const url = `/groups/${currentGroup}`;
         console.error('Group fetch failed:', url, e?.response?.status, e?.response?.data, e?.message);
@@ -1861,21 +1678,8 @@ async function init() {
     }
 
     if (groupInfo.public) {
-        // Public group: require light self-auth (any name + email + code), no admin pre-registration
-        if (authToken) {
-            axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
-            initializeCalendar().catch(err => {
-                if (err.response?.status === 401 || err.response?.status === 403) {
-                    localStorage.removeItem('authToken');
-                    authToken = null;
-                    showPublicLoginForm();
-                } else {
-                    console.error('Init error:', err);
-                }
-            });
-        } else {
-            showPublicLoginForm();
-        }
+        // Public group: go straight to calendar, no login required
+        initializeCalendar().catch(err => console.error('Init error:', err));
     } else {
         // Private group: require authentication
         if (authToken) {

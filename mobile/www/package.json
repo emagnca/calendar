@@ -1,0 +1,12 @@
+{
+  "name": "resource-booking-calendar",
+  "version": "1.0.0",
+  "description": "A simple resource booking calendar",
+  "main": "index.html",
+  "scripts": {
+    "start": "python3 -m http.server 8000"
+  },
+  "dependencies": {
+    "axios": "^1.5.0"
+  }
+}

@@ -15,6 +15,11 @@ rsync -a --delete \
     --exclude="public/index.html" \
     "$CLIENT_DIR/" "$WWW_DIR/"
 
+echo "→ Copying mobile-specific scripts to www/..."
+cp "$SCRIPT_DIR/mobile-patch.js"    "$WWW_DIR/"
+cp "$SCRIPT_DIR/mobile-landing.js"  "$WWW_DIR/"
+cp "$SCRIPT_DIR/mobile-calendar.js" "$WWW_DIR/"
+
 echo "→ Patching www/index.html..."
 python3 - <<'PYEOF'
 import re, os
@@ -34,16 +39,37 @@ html = html.replace(
     f"axios.defaults.baseURL = '{api_url}/api';"
 )
 
-# 3. Inject mobile-patch.js before script.js
+# 3. Inject mobile scripts: patch before, landing+calendar after script.js
 html = html.replace(
     '<script src="script.js"></script>',
-    '<script src="mobile-patch.js"></script>\n<script src="script.js"></script>'
+    '<script src="mobile-patch.js"></script>\n<script src="script.js"></script>\n<script src="mobile-landing.js"></script>\n<script src="mobile-calendar.js"></script>'
 )
 
 with open(path, 'w') as f:
     f.write(html)
 
 print('  index.html patched.')
+PYEOF
+
+echo "→ Patching www/register/index.html..."
+python3 - <<'PYEOF'
+import os
+
+path = os.path.join(os.environ.get('WWW_DIR', 'www'), 'register/index.html')
+api_url = os.environ.get('API_URL', '')
+
+if not os.path.exists(path):
+    print('  register/index.html not found, skipping.')
+else:
+    with open(path) as f:
+        html = f.read()
+    html = html.replace(
+        "axios.post('/group-registration",
+        f"axios.post('{api_url}/group-registration"
+    )
+    with open(path, 'w') as f:
+        f.write(html)
+    print('  register/index.html patched.')
 PYEOF
 
 echo "→ Patching www/script.js..."
@@ -60,11 +86,20 @@ patched  = "const currentGroup = window._mobileGroup || window.location.pathname
 
 if original in src:
     src = src.replace(original, patched)
+    print('  script.js: currentGroup patched.')
+else:
+    print('  WARNING: currentGroup line not found in script.js — patch skipped.')
+
+# Patch both booking confirmation alerts to offer calendar add
+calendar_hook = "\n        if (typeof window.offerCalendarAdd === 'function') { window.offerCalendarAdd(selectedDate, time, resource); }"
+confirmation   = "alert(t('alert_booking_confirmed'));"
+if confirmation in src:
+    src = src.replace(confirmation, confirmation + calendar_hook)
     with open(path, 'w') as f:
         f.write(src)
-    print('  script.js patched.')
+    print('  script.js: calendar hook patched.')
 else:
-    print('  WARNING: expected line not found in script.js — patch skipped.')
+    print('  WARNING: booking confirmation alert not found in script.js — calendar hook skipped.')
 PYEOF
 
 echo "✓ Build complete. Run 'npx cap sync' to push to iOS/Android."

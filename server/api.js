@@ -1,5 +1,6 @@
 'use strict';
 
+
 const express = require('express');
 const path = require('path');
 const jwt = require('jsonwebtoken');
@@ -18,6 +19,7 @@ const Event = require('./models/Event');
 const User = require('./models/User');
 const Group = require('./models/Group');
 const GroupRegistration = require('./models/GroupRegistration');
+const PublicUser = require('./models/PublicUser');
 const auth = require('./middleware/auth');
 
 class ApiCalendar {
@@ -41,6 +43,14 @@ class ApiCalendar {
                 req.group = group;
                 next();
             });
+        }
+        // Public group — decode JWT if present (public or private user), but don't require it
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+        if (token) {
+            try {
+                const jwtSecret = await getSecret('cal_jwt_secret');
+                req.user = jwt.verify(token, jwtSecret.secret || jwtSecret);
+            } catch (_) { /* invalid/expired token — treat as anonymous */ }
         }
         req.group = group;
         next();
@@ -225,6 +235,50 @@ class ApiCalendar {
             }
         });
 
+        // Public calendar self-auth (no admin pre-registration required)
+        router.post('/public-auth/send-code', async (req, res) => {
+            try {
+                const { name, email, group } = req.body;
+                if (!name || !email || !group) return res.status(400).json({ error: 'name, email and group are required' });
+                const grp = await Group.findOne({ name: group.toLowerCase() });
+                if (!grp || !grp.public) return res.status(403).json({ error: 'Group not found or not public' });
+
+                const code = Math.floor(100000 + Math.random() * 900000).toString();
+                await PublicUser.findOneAndUpdate(
+                    { email: email.toLowerCase(), group: group.toLowerCase() },
+                    { name: name.trim(), loginCode: code, loginCodeExpiry: new Date(Date.now() + 10 * 60 * 1000), lastSeen: new Date() },
+                    { upsert: true, new: true }
+                );
+                await sendEmail(email, `Din inloggningskod är: <strong>${code}</strong>`, 'Din inloggningskod')
+                    .catch(e => console.warn('sendEmail failed (non-fatal):', e.message));
+                res.json({ message: 'Code sent' });
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        router.post('/public-auth/verify-code', async (req, res) => {
+            try {
+                const { email, code, group } = req.body;
+                if (!email || !code || !group) return res.status(400).json({ error: 'email, code and group are required' });
+                const pu = await PublicUser.findOne({ email: email.toLowerCase(), group: group.toLowerCase() });
+                if (!pu) return res.status(401).json({ error: 'No pending login for this email' });
+                if (!pu.loginCode || pu.loginCode !== code) return res.status(401).json({ error: 'Invalid code' });
+                if (!pu.loginCodeExpiry || pu.loginCodeExpiry < new Date()) return res.status(401).json({ error: 'Code has expired' });
+
+                pu.loginCode = undefined;
+                pu.loginCodeExpiry = undefined;
+                pu.lastSeen = new Date();
+                await pu.save();
+
+                const jwtSecret = await getSecret('cal_jwt_secret');
+                const token = jwt.sign(
+                    { email: pu.email, name: pu.name, group: pu.group, isPublic: true, role: 'user' },
+                    jwtSecret.secret || jwtSecret,
+                    { expiresIn: '30d' }
+                );
+                res.json({ token, user: { email: pu.email, name: pu.name, group: pu.group, isPublic: true } });
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
         // Groups
         router.get('/groups/:name', async (req, res) => {
             try {
@@ -309,9 +363,10 @@ class ApiCalendar {
             }
         });
 
-        router.post('/events', this.groupAccess, auth, async (req, res) => {
+        router.post('/events', this.groupAccess, async (req, res) => {
             const methodName = 'createEvent';
             logMethodEntry(methodName, { body: req.body });
+            if (!req.user) return res.status(401).json({ error: 'Authentication required' });
             try {
                 const bookingDate = new Date(req.body.date);
                 bookingDate.setHours(0, 0, 0, 0);
@@ -344,8 +399,9 @@ class ApiCalendar {
                 const event = new Event({
                     resourceId: req.body.resourceId,
                     resourceName: resource.name,
-                    userId: req.user._id || req.user.userId,
-                    userEmail: req.user.email,
+                    userId: (req.user && (req.user._id || req.user.userId)) ? (req.user._id || req.user.userId) : null,
+                    userEmail: req.user ? req.user.email : null,
+                    bookerName: (req.user && req.user.isPublic) ? req.user.name : null,
                     date: new Date(req.body.date),
                     time: req.body.time,
                     group: req.group.name,
@@ -636,6 +692,11 @@ class ApiCalendar {
 
         app.use(router);
         app.use('/api/admin', adminRouter);
+
+        // Serve landing page at root
+        app.get('/', (req, res) => {
+            res.sendFile(path.join(clientRoot, 'index.html'));
+        });
 
         // Serve group registration page
         app.get('/register', (req, res) => {

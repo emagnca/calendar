@@ -24,12 +24,6 @@ const sv = {
     landing_hint: 'Eller skapa en ny grupp genom att registrera dig som administratör.',
     landing_image_error_calendar: 'Det gick inte att ladda kalendergränssnittsbilden',
     landing_image_error_admin: 'Det gick inte att ladda administratörsöversiktbilden',
-    landing_group_not_found: 'Gruppen \'{0}\' hittades inte.',
-    landing_group_register_prompt: 'Vill du registrera \'{0}\' som en ny grupp?',
-    link_admin_view: 'Admin',
-    admin_link_view_calendar: 'Visa kalender',
-    landing_btn_register_group: 'Ja, registrera grupp',
-    landing_btn_dismiss: 'Nej, avbryt',
 
     // Nav / header
     logout: 'Logga ut',
@@ -63,15 +57,6 @@ const sv = {
     btn_back: 'Tillbaka',
     btn_book: 'Boka',
 
-    // Public booker identification
-    booker_name_label: 'Ditt namn:',
-    booker_name_placeholder: 'Ange ditt namn',
-    booker_email_label: 'Din e-post:',
-    booker_email_placeholder: 'Ange din e-postadress',
-    booker_info_title: 'Dina uppgifter',
-    alert_booker_name_required: 'Ange ditt namn innan du bokar.',
-    alert_booker_email_required: 'Ange din e-postadress innan du bokar.',
-
     // Day view
     select_resource_instruction: 'Välj en resurs för att se lediga tider:',
     available_times_title: 'Tillgängliga tider',
@@ -101,11 +86,6 @@ const sv = {
     btn_login: 'Logga in',
     text_no_account: 'Har du inget konto?',
     link_register: 'Registrera dig',
-
-    // Public login form
-    public_login_title: 'Identifiera dig',
-    public_login_desc: 'Ange ditt namn och e-post för att få en inloggningskod.',
-    alert_public_name_required: 'Ange ditt namn.',
 
     // Register form
     register_title: 'Registrera dig',

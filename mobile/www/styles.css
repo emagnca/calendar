@@ -49,21 +49,6 @@ h1 {
     gap: 8px;
 }
 
-.logout-button {
-    display: inline-block;
-    padding: 5px 12px;
-    background: #f0f0f0;
-    color: #333;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    text-decoration: none;
-    line-height: 1.4;
-}
-.logout-button:hover { background: #e0e0e0; }
-
 @media (max-width: 480px) {
     .header h1 {
         display: none;

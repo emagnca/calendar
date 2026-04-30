@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <base href="/">
     <title>EasyBooking</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
@@ -12,7 +11,7 @@
     <script src="i18n.js"></script>
     <script>
         // API Configuration
-        axios.defaults.baseURL = '/api';
+        axios.defaults.baseURL = 'https://mr3xmgyqnxzrszocyvutnjknty0eodkp.lambda-url.eu-north-1.on.aws/api';
 
         // Handle API errors globally
         axios.interceptors.response.use(
@@ -35,7 +34,6 @@
                 </select>
                 <div class="user-info" id="userInfo" style="display: none;">
                     <span id="userName"></span>
-                    <a id="adminLink" href="#" class="logout-button" style="display:none" data-i18n="link_admin_view">Admin</a>
                     <button id="logoutButton" class="logout-button" data-i18n="logout">Logga ut</button>
                 </div>
             </div>
@@ -80,17 +78,6 @@
                         <div class="form-group">
                             <label for="timeSlot" data-i18n="select_time_label">Välj tid:</label>
                             <select id="timeSlot" required></select>
-                        </div>
-                        <div id="bookerInfoSection" style="display:none;">
-                            <h4 data-i18n="booker_info_title">Dina uppgifter</h4>
-                            <div class="form-group">
-                                <label for="bookerName" data-i18n="booker_name_label">Ditt namn:</label>
-                                <input type="text" id="bookerName" autocomplete="name" data-i18n-placeholder="booker_name_placeholder">
-                            </div>
-                            <div class="form-group">
-                                <label for="bookerEmail" data-i18n="booker_email_label">Din e-post:</label>
-                                <input type="email" id="bookerEmail" autocomplete="email" data-i18n-placeholder="booker_email_placeholder">
-                            </div>
                         </div>
                         <div class="button-group">
                             <button type="button" id="prevStep" data-i18n="btn_back">Tillbaka</button>
@@ -170,7 +157,6 @@
                         <input type="text" id="groupInput" placeholder="Enter group name..." class="landing-input" data-i18n-placeholder="landing_input_placeholder" />
                         <button id="goToGroupBtn" class="landing-button" data-i18n="landing_go_button">Go to Group</button>
                     </div>
-                    <div id="groupStatusMsg" style="display:none;margin-top:12px;"></div>
                     <div class="landing-register-block">
                         <p class="landing-hint" data-i18n="landing_hint">Or create a new group by registering as an admin.</p>
                         <a href="/register" class="landing-register-btn" data-i18n="link_register">Register new group</a>
@@ -180,7 +166,10 @@
         </div>
     </div>
 
+<script src="mobile-patch.js"></script>
 <script src="script.js"></script>
+<script src="mobile-landing.js"></script>
+<script src="mobile-calendar.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             initI18n();

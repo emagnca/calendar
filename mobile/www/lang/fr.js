@@ -1,0 +1,165 @@
+const fr = {
+    // App
+    app_title: 'Réservation de ressources',
+
+    // Nav / header
+    logout: 'Se déconnecter',
+
+    // Calendar weekdays
+    day_sun: 'Dim', day_mon: 'Lun', day_tue: 'Mar', day_wed: 'Mer',
+    day_thu: 'Jeu', day_fri: 'Ven', day_sat: 'Sam',
+
+    // Calendar months
+    months: ['Janvier','Février','Mars','Avril','Mai','Juin',
+             'Juillet','Août','Septembre','Octobre','Novembre','Décembre'],
+
+    // Sections
+    resources_title: 'Ressources disponibles',
+    bookings_title: 'Réservations en cours',
+    admin_label_group: 'Groupe',
+    // Resource cards
+    no_resources: 'Aucune ressource disponible.',
+    card_click_hint: 'Cliquer pour sélectionner',
+    card_selected: '✓ Sélectionné — cliquez un jour pour réserver',
+
+    // Booking modal step 1
+    step1_title: 'Sélectionner une ressource',
+    select_resource_label: 'Sélectionner une ressource :',
+    select_resource_placeholder: 'Choisir une ressource...',
+    btn_next: 'Suivant',
+
+    // Booking modal step 2
+    step2_title: 'Sélectionner un créneau',
+    select_time_label: 'Sélectionner un créneau :',
+    btn_back: 'Retour',
+    btn_book: 'Réserver',
+
+    // Day view
+    select_resource_instruction: 'Sélectionnez une ressource pour voir les créneaux disponibles :',
+    available_times_title: 'Créneaux disponibles',
+    btn_book_slot: 'Réserver',
+    btn_cancel_booking: 'Annuler la réservation',
+    label_booked: 'Réservé',
+
+    // Inline booking
+    booking_duration: 'Durée de réservation : {0} minutes',
+    available_hours: 'Disponible : {0} - {1}',
+    available_times_inline: 'Créneaux disponibles',
+    no_slots_today: 'Aucun créneau disponible pour cette ressource aujourd\'hui.',
+    btn_cancel: 'Annuler',
+
+    // Resource info in modal
+    resource_duration: 'Durée de réservation : {0} minutes',
+    resource_available: 'Disponible : {0} - {1}',
+
+    // Login form
+    login_title: 'Connexion',
+    label_email: 'E-mail :',
+    btn_send_code: 'Envoyer le code par e-mail',
+    btn_sending: 'Envoi...',
+    btn_resend_code: 'Renvoyer le code',
+    label_code: 'Code :',
+    placeholder_code: 'Code à 6 chiffres',
+    btn_login: 'Se connecter',
+    text_no_account: 'Pas encore de compte ?',
+    link_register: 'S\'inscrire',
+
+    // Register form
+    register_title: 'Inscription',
+    label_name: 'Nom :',
+    label_password: 'Mot de passe :',
+    btn_register: 'S\'inscrire',
+    text_have_account: 'Vous avez déjà un compte ?',
+    link_login: 'Se connecter',
+
+    // My bookings
+    my_bookings_title: 'Mes réservations',
+    no_upcoming_bookings: 'Vous n\'avez aucune réservation à venir.',
+
+    // Alerts / confirms
+    alert_enter_email: 'Veuillez d\'abord saisir votre adresse e-mail.',
+    alert_send_code_failed: 'Impossible d\'envoyer le code',
+    alert_login_failed: 'Échec de la connexion',
+    alert_registration_failed: 'Échec de l\'inscription',
+    confirm_cancel_booking: 'Êtes-vous sûr de vouloir annuler cette réservation ?',
+    alert_booking_confirmed: 'Réservation confirmée !',
+    alert_slot_already_booked: 'Ce créneau est déjà réservé !',
+    alert_error_booking: 'Erreur lors de la réservation. Veuillez réessayer.',
+    alert_error_loading_resources: 'Erreur lors du chargement des ressources. Veuillez réessayer.',
+    alert_no_resources: 'Aucune ressource disponible. Veuillez en ajouter au système.',
+    alert_error_init: 'Erreur d\'initialisation du calendrier. Veuillez actualiser la page.',
+    alert_error_day_view: 'Erreur lors du chargement de la vue journalière. Veuillez réessayer.',
+    alert_error_availability: 'Erreur lors du chargement des disponibilités',
+    alert_error_resource_info: 'Erreur lors du chargement des informations sur la ressource.',
+    alert_error_bookings: 'Erreur lors du chargement des réservations. Veuillez réessayer.',
+
+    // Admin
+    admin_login_title: 'Connexion administrateur',
+    admin_label_code: 'Code de connexion',
+    admin_btn_send_code: 'Envoyer le code de connexion',
+    admin_btn_login: 'Connexion',
+    admin_err_enter_email: 'Saisissez votre adresse e-mail.',
+    admin_err_send_code: 'Échec de l\'envoi du code.',
+    admin_err_invalid_code: 'Code invalide.',
+    admin_err_access_denied: 'Accès refusé : rôle administrateur requis.',
+    admin_nav_resources: 'Ressources',
+    admin_nav_users: 'Utilisateurs',
+    admin_nav_bookings: 'Réservations',
+    admin_nav_groups: 'Groupes',
+    admin_btn_filter: 'Filtrer',
+    admin_th_date: 'Date',
+    admin_th_time: 'Heure',
+    admin_th_resource: 'Ressource',
+    admin_th_status: 'Statut',
+    admin_no_bookings: 'Aucune réservation trouvée.',
+    admin_confirm_delete_booking: 'Supprimer cette réservation ?',
+    admin_btn_add_resource: '+ Ajouter une ressource',
+    admin_btn_add_user: '+ Ajouter un utilisateur',
+    admin_btn_add_group: '+ Ajouter un groupe',
+    admin_btn_save: 'Enregistrer',
+    admin_btn_edit: 'Modifier',
+    admin_btn_delete: 'Supprimer',
+    admin_loading: 'Chargement…',
+    admin_no_resources: 'Aucune ressource.',
+    admin_no_users: 'Aucun utilisateur.',
+    admin_no_groups: 'Aucun groupe.',
+    admin_th_id: 'ID',
+    admin_th_name: 'Nom (sv / en)',
+    admin_th_slot: 'Créneau (min)',
+    admin_th_hours: 'Heures',
+    admin_th_active: 'Actif',
+    admin_th_email: 'E-mail',
+    admin_th_role: 'Rôle',
+    admin_th_public: 'Public',
+    admin_th_actions: '',
+    admin_yes: 'Oui',
+    admin_no_val: 'Non',
+    admin_field_resource_id: 'ID de la ressource',
+    admin_hint_resource_id: 'Identifiant unique, ex. machine-a-laver-1',
+    admin_field_name_sv: 'Nom (sv)',
+    admin_field_name_en: 'Nom (en)',
+    admin_field_name_fr: 'Nom (fr)',
+    admin_field_name_es: 'Nom (es)',
+    admin_field_desc_sv: 'Description (sv)',
+    admin_field_desc_en: 'Description (en)',
+    admin_field_desc_fr: 'Description (fr)',
+    admin_field_desc_es: 'Description (es)',
+    admin_field_slot_len: 'Durée du créneau (min)',
+    admin_field_active: 'Actif',
+    admin_field_earliest: 'Début',
+    admin_field_latest: 'Fin',
+    admin_field_password: 'Mot de passe',
+    admin_hint_password: '(laisser vide pour conserver)',
+    admin_field_group_name: 'Nom',
+    admin_hint_group_name: 'Minuscules, sans espaces. Utilisé dans l\'URL.',
+    admin_field_group_public: 'Public (sans connexion requise)',
+    admin_modal_add_resource: 'Ajouter une ressource',
+    admin_modal_edit_resource: 'Modifier la ressource',
+    admin_modal_add_user: 'Ajouter un utilisateur',
+    admin_modal_edit_user: 'Modifier l\'utilisateur',
+    admin_modal_add_group: 'Ajouter un groupe',
+    admin_modal_edit_group: 'Modifier le groupe',
+    admin_confirm_delete_resource: 'Supprimer cette ressource ? Les réservations existantes seront conservées.',
+    admin_confirm_delete_user: 'Supprimer cet utilisateur ? Cette action est irréversible.',
+    admin_confirm_delete_group: 'Supprimer le groupe « {0} » ? Ses ressources et utilisateurs ne seront PAS supprimés.',
+};

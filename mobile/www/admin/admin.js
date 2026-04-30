@@ -98,7 +98,6 @@ async function bootApp() {
 
     document.getElementById('groupLabel').textContent = currentGroup || '—';
     document.getElementById('currentUserName').textContent = `${currentUser.name || currentUser.email} (${currentUser.role})`;
-    if (currentGroup) document.getElementById('calendarLink').href = `/${currentGroup}`;
 
     // Show Groups tab only for superadmin
     if (currentUser.role === 'superadmin') {
