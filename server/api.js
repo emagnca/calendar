@@ -18,6 +18,7 @@ const Resource = require('./models/Resource');
 const Event = require('./models/Event');
 const User = require('./models/User');
 const Group = require('./models/Group');
+const BlockedPeriod = require('./models/BlockedPeriod');
 const GroupRegistration = require('./models/GroupRegistration');
 const PublicUser = require('./models/PublicUser');
 const auth = require('./middleware/auth');
@@ -401,6 +402,17 @@ class ApiCalendar {
                     return res.status(400).json({ error: 'Resource is not bookable on this day' });
                 }
 
+                const blocks = await BlockedPeriod.find({
+                    group: req.group.name,
+                    startDate: { $lte: bookingDate },
+                    endDate:   { $gte: bookingDate },
+                    $or: [{ resourceId: null }, { resourceId: req.body.resourceId }]
+                });
+                const isBlocked = blocks.some(bp =>
+                    !bp.startTime || (req.body.time >= bp.startTime && req.body.time < bp.endTime)
+                );
+                if (isBlocked) return res.status(409).json({ error: 'This date/time is blocked by the administrator' });
+
                 const bookingCount = await Event.countDocuments({
                     resourceId: req.body.resourceId,
                     date: new Date(req.body.date),
@@ -506,13 +518,27 @@ class ApiCalendar {
                 const capacity = resource.capacity || 1;
                 const timeSlots = this.generateTimeSlots(bookingConfig.startTime, bookingConfig.endTime, bookingConfig.duration);
 
+                const dateObj = new Date(date);
+                const blocks = await BlockedPeriod.find({
+                    group: req.group.name,
+                    startDate: { $lte: dateObj },
+                    endDate:   { $gte: dateObj },
+                    $or: [{ resourceId: null }, { resourceId }]
+                });
+
                 const availability = timeSlots.map(time => {
                     const slotBookings = bookings.filter(b => b.time === time);
                     const spotsLeft = capacity - slotBookings.length;
+                    const matchingBlock = blocks.find(bp =>
+                        !bp.startTime || (time >= bp.startTime && time < bp.endTime)
+                    );
+                    const isBlocked = !!matchingBlock;
                     return {
                         time,
-                        isAvailable: spotsLeft > 0,
-                        spotsLeft,
+                        isAvailable: !isBlocked && spotsLeft > 0,
+                        isBlocked,
+                        blockReason: matchingBlock?.reason || null,
+                        spotsLeft: isBlocked ? 0 : spotsLeft,
                         capacity,
                         bookings: slotBookings.map(b => ({
                             id: b._id,
@@ -750,6 +776,44 @@ class ApiCalendar {
                 }
                 await user.deleteOne();
                 res.json({ message: 'User deleted' });
+            } catch (e) { res.status(400).json({ error: e.message }); }
+        });
+
+        // Blocked periods (admin+)
+        adminRouter.get('/blocked-periods', requireRole('admin', 'superadmin'), adminGroupScope, async (req, res) => {
+            try {
+                const periods = await BlockedPeriod.find({ group: req.group.name }).sort('startDate');
+                res.json(periods);
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        adminRouter.post('/blocked-periods', requireRole('admin', 'superadmin'), adminGroupScope, async (req, res) => {
+            try {
+                const { resourceId, startDate, endDate, startTime, endTime, reason } = req.body;
+                if (!startDate) return res.status(400).json({ error: 'startDate is required' });
+                if ((startTime && !endTime) || (!startTime && endTime))
+                    return res.status(400).json({ error: 'Both startTime and endTime are required when blocking a time range' });
+                const period = await BlockedPeriod.create({
+                    group:      req.group.name,
+                    resourceId: resourceId || null,
+                    startDate:  new Date(startDate),
+                    endDate:    new Date(endDate || startDate),
+                    startTime:  startTime || null,
+                    endTime:    endTime   || null,
+                    reason:     reason    || ''
+                });
+                res.status(201).json(period);
+            } catch (e) { res.status(400).json({ error: e.message }); }
+        });
+
+        adminRouter.delete('/blocked-periods/:id', requireRole('admin', 'superadmin'), async (req, res) => {
+            try {
+                const period = await BlockedPeriod.findById(req.params.id);
+                if (!period) return res.status(404).json({ error: 'Not found' });
+                if (req.adminUser.role !== 'superadmin' && period.group !== req.adminUser.group)
+                    return res.status(403).json({ error: 'Access denied' });
+                await period.deleteOne();
+                res.json({ ok: true });
             } catch (e) { res.status(400).json({ error: e.message }); }
         });
 

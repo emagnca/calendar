@@ -146,6 +146,7 @@ function loadCurrentTab() {
     else if (activeTab === 'users')  loadUsers();
     else if (activeTab === 'bookings') loadBookings();
     else if (activeTab === 'groups') loadGroups();
+    else if (activeTab === 'blocked')  loadBlockedPeriods();
     else if (activeTab === 'settings') loadSettings();
 }
 
@@ -541,6 +542,94 @@ window.deleteGroup = async (name) => {
     try {
         await axios.delete(`/admin/groups/${name}`);
         loadGroups();
+    } catch (e) { alert(apiError(e)); }
+};
+
+// ── Blocked Periods ──────────────────────────────────────────────────────────
+
+let groupResources = [];
+
+async function loadBlockedPeriods() {
+    try {
+        const [bpRes, resRes] = await Promise.all([
+            axios.get(`/admin/blocked-periods${groupQuery()}`),
+            axios.get(`/admin/resources${groupQuery()}`)
+        ]);
+        groupResources = resRes.data;
+        const tbody = document.getElementById('blockedBody');
+        tbody.innerHTML = bpRes.data.map(bp => {
+            const res = bp.resourceId ? groupResources.find(r => r.resourceId === bp.resourceId) : null;
+            const resLabel = res ? localize(res.name) : (bp.resourceId || t('admin_blocked_all_resources'));
+            const start = bp.startDate.slice(0, 10);
+            const end   = bp.endDate.slice(0, 10);
+            const period = start === end ? start : `${start} – ${end}`;
+            const time   = bp.startTime ? `${bp.startTime} – ${bp.endTime}` : t('admin_blocked_full_day');
+            return `<tr>
+                <td>${resLabel}</td>
+                <td>${period}</td>
+                <td>${time}</td>
+                <td>${bp.reason || '–'}</td>
+                <td class="actions">
+                    <button class="btn btn-sm btn-danger" onclick="deleteBlockedPeriod('${bp._id}')">${t('admin_btn_delete')}</button>
+                </td>
+            </tr>`;
+        }).join('') || `<tr><td colspan="5">${t('admin_no_blocks')}</td></tr>`;
+    } catch (e) {
+        document.getElementById('blockedBody').innerHTML = `<tr><td colspan="5" style="color:red">${apiError(e)}</td></tr>`;
+    }
+}
+
+function blockedPeriodForm() {
+    const today = new Date().toISOString().slice(0, 10);
+    const resOpts = [`<option value="">${t('admin_blocked_all_resources')}</option>`]
+        .concat(groupResources.map(r => `<option value="${r.resourceId}">${localize(r.name)}</option>`))
+        .join('');
+    return `
+        <div class="field">
+            <label>${t('admin_th_resource')}</label>
+            <select id="f-bp-resource">${resOpts}</select>
+        </div>
+        <div class="field-row">
+            <div class="field"><label>${t('admin_field_start_date')}</label><input type="date" id="f-bp-start" value="${today}"></div>
+            <div class="field"><label>${t('admin_field_end_date')}</label><input type="date" id="f-bp-end" value="${today}"></div>
+        </div>
+        <div class="field-row">
+            <div class="field"><label>${t('admin_field_start_time')} <small style="color:#888">(${t('admin_optional')})</small></label><input type="time" id="f-bp-startTime"></div>
+            <div class="field"><label>${t('admin_field_end_time')} <small style="color:#888">(${t('admin_optional')})</small></label><input type="time" id="f-bp-endTime"></div>
+        </div>
+        <div class="field"><label>${t('admin_field_reason')} <small style="color:#888">(${t('admin_optional')})</small></label><input id="f-bp-reason" placeholder="${t('admin_blocked_reason_placeholder')}"></div>`;
+}
+
+document.getElementById('btnAddBlock').addEventListener('click', () => {
+    openModal(t('admin_blocked_btn_add'), blockedPeriodForm(), async () => {
+        try {
+            const startDate  = document.getElementById('f-bp-start').value;
+            const endDate    = document.getElementById('f-bp-end').value || startDate;
+            const startTime  = document.getElementById('f-bp-startTime').value;
+            const endTime    = document.getElementById('f-bp-endTime').value;
+            if (!startDate) { alert(t('admin_blocked_date_required')); return false; }
+            if ((startTime && !endTime) || (!startTime && endTime)) {
+                alert(t('admin_blocked_time_both')); return false;
+            }
+            await axios.post('/admin/blocked-periods', groupBody({
+                resourceId: document.getElementById('f-bp-resource').value || null,
+                startDate,
+                endDate,
+                startTime: startTime || null,
+                endTime:   endTime   || null,
+                reason:    document.getElementById('f-bp-reason').value.trim()
+            }));
+            loadBlockedPeriods();
+            return true;
+        } catch (e) { alert(apiError(e)); return false; }
+    });
+});
+
+window.deleteBlockedPeriod = async (id) => {
+    if (!confirm(t('admin_confirm_delete_block'))) return;
+    try {
+        await axios.delete(`/admin/blocked-periods/${id}`);
+        loadBlockedPeriods();
     } catch (e) { alert(apiError(e)); }
 };
 

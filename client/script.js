@@ -270,7 +270,12 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
                                     ? ` <small>(${t('label_spots_left', slot.spotsLeft)})</small>` : '';
                                 action = `<button onclick="handleInlineBooking('${resourceId}', '${slot.time}')">${t('btn_book_slot')}</button>${spotsLabel}`;
                             } else if (!cancelButtons) {
-                                action = `<span class="booked-label">${t('label_fully_booked')}</span>`;
+                                const blockedMsg = slot.isBlocked && slot.blockReason
+                                    ? slot.blockReason
+                                    : slot.isBlocked
+                                        ? t('label_blocked')
+                                        : t('label_fully_booked');
+                                action = `<span class="booked-label">${blockedMsg}</span>`;
                             }
                             action += cancelButtons;
                         }

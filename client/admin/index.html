@@ -68,6 +68,7 @@
                 <li><a href="#" data-tab="users" data-i18n="admin_nav_users">Users</a></li>
                 <li><a href="#" data-tab="bookings" data-i18n="admin_nav_bookings">Bookings</a></li>
                 <li id="groupsNav" style="display:none"><a href="#" data-tab="groups" data-i18n="admin_nav_groups">Groups</a></li>
+                <li><a href="#" data-tab="blocked" data-i18n="admin_nav_blocked">Blocked Periods</a></li>
                 <li><a href="#" data-tab="settings" data-i18n="admin_nav_settings">Settings</a></li>
             </ul>
         </nav>
@@ -137,6 +138,26 @@
                         </tr>
                     </thead>
                     <tbody id="bookingsBody"></tbody>
+                </table>
+            </section>
+
+            <!-- Blocked Periods -->
+            <section id="tab-blocked" class="tab">
+                <div class="section-header">
+                    <h2 data-i18n="admin_nav_blocked">Blocked Periods</h2>
+                    <button class="btn btn-primary" id="btnAddBlock" data-i18n="admin_blocked_btn_add">+ Add block</button>
+                </div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th data-i18n="admin_th_resource">Resource</th>
+                            <th data-i18n="admin_blocked_th_period">Period</th>
+                            <th data-i18n="admin_blocked_th_time">Time</th>
+                            <th data-i18n="admin_field_reason">Reason</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="blockedBody"></tbody>
                 </table>
             </section>
 
