@@ -1357,13 +1357,34 @@ document.head.appendChild(styles);
 
 // Authentication state
 let currentUser = null;
-let authToken = localStorage.getItem('authToken');
+
+// Pick the best available token: prefer private-user tokens (have _id) over public ones
+function pickToken() {
+    const tryAdmin = localStorage.getItem('adminToken');
+    const tryAuth  = localStorage.getItem('authToken');
+    const isValidPrivate = t => {
+        if (!t) return false;
+        try { const p = JSON.parse(atob(t.split('.')[1])); return !!(p._id && p.exp * 1000 > Date.now()); }
+        catch { return false; }
+    };
+    if (isValidPrivate(tryAdmin)) return tryAdmin;
+    if (isValidPrivate(tryAuth))  return tryAuth;
+    return tryAdmin || tryAuth || null;
+}
+let authToken = pickToken();
 
 // Try to restore user info from localStorage
 try {
     const userJson = localStorage.getItem('currentUser');
     if (userJson) {
         currentUser = JSON.parse(userJson);
+    } else if (authToken) {
+        const payload = JSON.parse(atob(authToken.split('.')[1]));
+        if (payload.exp * 1000 > Date.now()) {
+            currentUser = payload._id
+                ? { id: payload._id, email: payload.email, role: payload.role, group: payload.group }
+                : { email: payload.email, name: payload.name, role: payload.role || 'user', group: payload.group };
+        }
     }
 } catch (error) {
     console.error('Error restoring user info:', error);
@@ -1514,6 +1535,7 @@ function showLoginForm() {
             
             // Store token and user info
             localStorage.setItem('authToken', authToken);
+            localStorage.setItem('adminToken', authToken);
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
             
             // Set default Authorization header for all future requests
@@ -1588,6 +1610,7 @@ function showRegisterForm() {
             
             // Store token and user info
             localStorage.setItem('authToken', authToken);
+            localStorage.setItem('adminToken', authToken);
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
             
             // Set default Authorization header for all future requests
@@ -1652,6 +1675,7 @@ function updateUserInfo() {
 function handleLogout() {
     // Clear auth data
     localStorage.removeItem('authToken');
+    localStorage.removeItem('adminToken');
     localStorage.removeItem('currentUser');
     authToken = null;
     currentUser = null;

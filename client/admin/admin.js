@@ -11,7 +11,7 @@ function onLanguageChange() { loadCurrentTab(); }
 
 let currentUser      = null;
 let currentGroupInfo = null;
-let authToken        = localStorage.getItem('adminToken');
+let authToken        = localStorage.getItem('adminToken') || localStorage.getItem('authToken');
 if (authToken) axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -45,6 +45,8 @@ document.getElementById('btnVerifyCode').addEventListener('click', async () => {
         authToken   = res.data.token;
         currentUser = res.data.user;
         localStorage.setItem('adminToken', authToken);
+        localStorage.setItem('authToken', authToken);
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
         axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
         await bootApp();
     } catch (e) {
@@ -54,6 +56,8 @@ document.getElementById('btnVerifyCode').addEventListener('click', async () => {
 
 document.getElementById('btnLogout').addEventListener('click', () => {
     localStorage.removeItem('adminToken');
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('currentUser');
     delete axios.defaults.headers.common['Authorization'];
     currentUser = null;
     appEl.style.display = 'none';
