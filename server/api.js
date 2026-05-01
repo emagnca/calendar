@@ -157,7 +157,14 @@ class ApiCalendar {
                 if (Object.keys(errors).length)  return res.status(400).json({ error: errors });
 
                 await this.finalizeRegistration(reg);
-                res.json({ groupName: reg.groupName });
+                const adminUser = await User.findOne({ email: reg.adminEmail });
+                const jwtSecret = await getSecret('cal_jwt_secret');
+                const adminToken = jwt.sign(
+                    { _id: adminUser._id, email: adminUser.email, role: adminUser.role, group: adminUser.group },
+                    jwtSecret.secret || jwtSecret,
+                    { expiresIn: '24h' }
+                );
+                res.json({ groupName: reg.groupName, adminToken });
             } catch (e) { res.status(500).json({ error: e.message }); }
         });
 
@@ -394,13 +401,31 @@ class ApiCalendar {
                     return res.status(400).json({ error: 'Resource is not bookable on this day' });
                 }
 
-                const existingBooking = await Event.findOne({
+                const bookingCount = await Event.countDocuments({
                     resourceId: req.body.resourceId,
                     date: new Date(req.body.date),
                     time: req.body.time,
                     status: 'confirmed'
                 });
-                if (existingBooking) return res.status(409).json({ error: 'Time slot is already booked' });
+                if (bookingCount >= (resource.capacity || 1)) {
+                    return res.status(409).json({ error: 'Time slot is fully booked' });
+                }
+
+                const userId = req.user ? (req.user._id || req.user.userId) : null;
+                const userEmail = req.user ? req.user.email : null;
+                if (userId || userEmail) {
+                    const userFilter = {
+                        resourceId: req.body.resourceId,
+                        date: new Date(req.body.date),
+                        time: req.body.time,
+                        status: 'confirmed',
+                        ...(userId ? { userId } : { userEmail })
+                    };
+                    const alreadyBooked = await Event.exists(userFilter);
+                    if (alreadyBooked) {
+                        return res.status(409).json({ error: 'You have already booked this time slot' });
+                    }
+                }
 
                 const event = new Event({
                     resourceId: req.body.resourceId,
@@ -478,19 +503,24 @@ class ApiCalendar {
                     date: new Date(date)
                 }).populate('userId', 'email');
 
+                const capacity = resource.capacity || 1;
                 const timeSlots = this.generateTimeSlots(bookingConfig.startTime, bookingConfig.endTime, bookingConfig.duration);
 
                 const availability = timeSlots.map(time => {
-                    const booking = bookings.find(b => b.time === time);
+                    const slotBookings = bookings.filter(b => b.time === time);
+                    const spotsLeft = capacity - slotBookings.length;
                     return {
                         time,
-                        isAvailable: !booking,
-                        booking: booking ? {
-                            id: booking._id,
-                            userId: booking.userId?._id,
-                            userEmail: booking.userEmail,
-                            status: booking.status
-                        } : null
+                        isAvailable: spotsLeft > 0,
+                        spotsLeft,
+                        capacity,
+                        bookings: slotBookings.map(b => ({
+                            id: b._id,
+                            userId: b.userId?._id,
+                            userEmail: b.userEmail,
+                            bookerName: b.bookerName,
+                            status: b.status
+                        }))
                     };
                 });
 
@@ -564,11 +594,19 @@ class ApiCalendar {
             } catch (e) { res.status(400).json({ error: e.message }); }
         });
 
-        adminRouter.patch('/groups/:name', requireRole('superadmin'), async (req, res) => {
+        adminRouter.patch('/groups/:name', requireRole('admin', 'superadmin'), async (req, res) => {
             try {
+                const name = req.params.name.toLowerCase();
+                if (req.adminUser.role !== 'superadmin' && req.adminUser.group !== name) {
+                    return res.status(403).json({ error: 'Admins can only edit their own group' });
+                }
+                const update = { public: !!req.body.public };
+                if (Array.isArray(req.body.languages) && req.body.languages.length) {
+                    update.languages = req.body.languages;
+                }
                 const group = await Group.findOneAndUpdate(
-                    { name: req.params.name.toLowerCase() },
-                    { public: !!req.body.public },
+                    { name },
+                    update,
                     { new: true }
                 );
                 if (!group) return res.status(404).json({ error: 'Group not found' });
@@ -593,7 +631,21 @@ class ApiCalendar {
 
         adminRouter.post('/resources', requireRole('admin', 'superadmin'), adminGroupScope, async (req, res) => {
             try {
-                const resource = await Resource.create({ ...req.body, group: req.group.name });
+                let { resourceId } = req.body;
+                if (!resourceId) {
+                    const name = req.body.name;
+                    const raw = (typeof name === 'object' ? (name.en || name.sv) : name) || 'resource';
+                    const base = raw.toLowerCase()
+                        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                        .replace(/[^a-z0-9\s-]/g, '').trim()
+                        .replace(/\s+/g, '-').replace(/-+/g, '-');
+                    resourceId = base;
+                    let n = 2;
+                    while (await Resource.exists({ resourceId, group: req.group.name })) {
+                        resourceId = `${base}-${n++}`;
+                    }
+                }
+                const resource = await Resource.create({ ...req.body, resourceId, group: req.group.name });
                 res.status(201).json(resource);
             } catch (e) { res.status(400).json({ error: e.message }); }
         });

@@ -83,7 +83,6 @@ function renderResourceList() {
     container.innerHTML = resources.map(r => `
         <div class="resource-card" data-resource-id="${r.resourceId}">
             <div class="resource-card-name">${localize(r.name)}</div>
-            ${r.description ? `<div class="resource-card-desc">${localize(r.description)}</div>` : ''}
             <div class="resource-card-meta">${r.earliest} – ${r.latest} &nbsp;|&nbsp; ${r.slot_length} min/slot</div>
             <div class="resource-card-hint">${t('card_click_hint')}</div>
         </div>
@@ -240,7 +239,6 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
         const resourceInfo = `
             <div class="resource-details">
                 <p><strong>${localize(resourceDetails.name)}</strong></p>
-                <p>${localize(resourceDetails.description)}</p>
                 <p>${t('resource_duration', resourceDetails.bookingConfig.duration)}</p>
                 <p>${t('resource_available', resourceDetails.bookingConfig.startTime, resourceDetails.bookingConfig.endTime)}</p>
             </div>
@@ -260,18 +258,22 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
                     ${availability.map(slot => {
                         const past = isSlotPast(slot.time);
                         const cls = past ? 'past' : (slot.isAvailable ? 'available' : 'booked');
-                        const action = past
-                            ? ''
-                            : slot.isAvailable
-                                ? `<button onclick="handleInlineBooking('${resourceId}', '${slot.time}')">${t('btn_book_slot')}</button>`
-                                : slot.booking
-                                    ? `<span class="booking-info">
-                                        <span class="status">${slot.booking.status}</span>
-                                        ${canCancelBooking(slot.booking) && slot.booking.status === 'confirmed'
-                                            ? `<button onclick="cancelBooking('${slot.booking.id}', this)">${t('btn_cancel_booking')}</button>`
-                                            : ''}
-                                       </span>`
-                                    : `<span class="booked-label">${t('label_booked')}</span>`;
+                        const slotBookings = slot.bookings || [];
+                        const cancelButtons = slotBookings
+                            .filter(b => b.status === 'confirmed' && canCancelBooking(b))
+                            .map(b => `<span class="booking-info"><button onclick="cancelBooking('${b.id}', this)">${t('btn_cancel_booking')}</button></span>`)
+                            .join('');
+                        let action = '';
+                        if (!past) {
+                            if (slot.isAvailable) {
+                                const spotsLabel = slot.capacity > 1
+                                    ? ` <small>(${t('label_spots_left', slot.spotsLeft)})</small>` : '';
+                                action = `<button onclick="handleInlineBooking('${resourceId}', '${slot.time}')">${t('btn_book_slot')}</button>${spotsLabel}`;
+                            } else if (!cancelButtons) {
+                                action = `<span class="booked-label">${t('label_fully_booked')}</span>`;
+                            }
+                            action += cancelButtons;
+                        }
                         return `
                         <div class="time-slot ${cls}">
                             <div class="time-label">${slot.time}</div>
@@ -782,7 +784,6 @@ async function showInlineBookingForm(container, time) {
             // Show resource information
             resourceInfoDiv.innerHTML = `
                 <p><strong>${localize(resource.name)}</strong></p>
-                <p>${localize(resource.description)}</p>
                 <p>${t('booking_duration', resource.bookingConfig.duration)}</p>
                 <p>${t('available_hours', resource.bookingConfig.startTime, resource.bookingConfig.endTime)}</p>
             `;
@@ -1853,6 +1854,28 @@ async function init() {
         const res = await axios.get(`/groups/${currentGroup}`);
         groupInfo = res.data;
         currentGroupInfo = groupInfo;
+
+        // Restrict language picker to group-configured languages
+        const langs = groupInfo.languages && groupInfo.languages.length ? groupInfo.languages : null;
+        if (langs) {
+            const picker = document.getElementById('langPicker');
+            if (picker) {
+                const langLabels = { sv: '🇸🇪 Svenska', en: '🇬🇧 English', fr: '🇫🇷 Français', es: '🇪🇸 Español', zh: '🇨🇳 中文' };
+                picker.innerHTML = langs.map(l => `<option value="${l}">${langLabels[l] || l}</option>`).join('');
+                if (langs.length === 1) {
+                    picker.style.display = 'none';
+                    setLanguage(langs[0]);
+                } else {
+                    if (!langs.includes(getCurrentLang())) {
+                        const browserLang = (navigator.language || '').split('-')[0].toLowerCase();
+                        const preferred = langs.includes(browserLang) ? browserLang
+                            : langs.includes('en') ? 'en' : langs[0];
+                        setLanguage(preferred);
+                    }
+                    picker.value = getCurrentLang();
+                }
+            }
+        }
     } catch (e) {
         const url = `/groups/${currentGroup}`;
         console.error('Group fetch failed:', url, e?.response?.status, e?.response?.data, e?.message);

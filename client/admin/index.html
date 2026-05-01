@@ -9,6 +9,9 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="lang/sv.js"></script>
     <script src="lang/en.js"></script>
+    <script src="lang/fr.js"></script>
+    <script src="lang/es.js"></script>
+    <script src="lang/zh.js"></script>
     <script src="i18n.js"></script>
     <script>
         axios.defaults.baseURL = '/api';
@@ -48,6 +51,9 @@
             <select id="langPicker" class="lang-picker">
                 <option value="sv">🇸🇪 Svenska</option>
                 <option value="en">🇬🇧 English</option>
+                <option value="fr">🇫🇷 Français</option>
+                <option value="es">🇪🇸 Español</option>
+                <option value="zh">🇨🇳 中文</option>
             </select>
             <span id="currentUserName"></span>
             <a id="calendarLink" href="#" class="btn btn-sm btn-secondary" style="color:#333;text-decoration:none" data-i18n="admin_link_view_calendar">View Calendar</a>
@@ -62,6 +68,7 @@
                 <li><a href="#" data-tab="users" data-i18n="admin_nav_users">Users</a></li>
                 <li><a href="#" data-tab="bookings" data-i18n="admin_nav_bookings">Bookings</a></li>
                 <li id="groupsNav" style="display:none"><a href="#" data-tab="groups" data-i18n="admin_nav_groups">Groups</a></li>
+                <li><a href="#" data-tab="settings" data-i18n="admin_nav_settings">Settings</a></li>
             </ul>
         </nav>
 
@@ -78,6 +85,7 @@
                             <th data-i18n="admin_th_id">ID</th>
                             <th data-i18n="admin_th_name">Name (sv / en)</th>
                             <th data-i18n="admin_th_slot">Slot (min)</th>
+                            <th data-i18n="admin_th_capacity">Capacity</th>
                             <th data-i18n="admin_th_hours">Hours</th>
                             <th data-i18n="admin_th_active">Active</th>
                             <th></th>
@@ -130,6 +138,20 @@
                     </thead>
                     <tbody id="bookingsBody"></tbody>
                 </table>
+            </section>
+
+            <!-- Settings -->
+            <section id="tab-settings" class="tab">
+                <div class="section-header">
+                    <h2 data-i18n="admin_nav_settings">Settings</h2>
+                </div>
+                <div class="field" style="max-width:400px">
+                    <label data-i18n="admin_field_languages">Available languages</label>
+                    <div id="langCheckboxes" style="display:flex;gap:16px;margin-top:8px"></div>
+                </div>
+                <div style="margin-top:16px">
+                    <button class="btn btn-primary" id="btnSaveSettings" data-i18n="admin_btn_save">Save</button>
+                </div>
             </section>
 
             <!-- Groups (superadmin) -->

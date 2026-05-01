@@ -41,6 +41,11 @@ const resourceSchema = new mongoose.Schema({
     bookableDays: {
         type: [Number],
         default: [0, 1, 2, 3, 4, 5, 6]
+    },
+    capacity: {
+        type: Number,
+        default: 1,
+        min: 1
     }
 }, {
     timestamps: true

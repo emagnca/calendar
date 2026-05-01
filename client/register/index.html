@@ -150,7 +150,7 @@
                 emailCode: document.getElementById('emailCode').value.trim(),
                 smsCode:   document.getElementById('smsCode').value.trim()
             });
-            finalize(res.data.groupName);
+            finalize(res.data.groupName, res.data.adminToken);
         } catch (e) {
             const err = e.response?.data?.error;
             if (err && typeof err === 'object') {
@@ -164,7 +164,12 @@
         }
     });
 
-    function finalize(groupName) {
+    function finalize(groupName, adminToken) {
+        if (adminToken) {
+            localStorage.setItem('adminToken', adminToken);
+            window.location.href = `/admin/${groupName}`;
+            return;
+        }
         document.getElementById('groupNameDisplay').textContent = groupName;
         const adminUrl = `${window.location.origin}/admin/${groupName}`;
         const link = document.getElementById('adminLink');
