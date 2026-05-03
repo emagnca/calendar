@@ -18,13 +18,16 @@ const app = express();
 app.use(cors({
     origin: ['capacitor://localhost', 'http://localhost', /\.lambda-url\.eu-north-1\.on\.aws$/]
 }));
-app.use(express.json());
+app.use(express.json({ verify: (req, _res, buf) => { req.rawBody = buf; } }));
 
 // Serve client static files (must be before SPA catch-all routes)
 const clientRoot = fs.existsSync(path.join(__dirname, 'client'))
     ? path.join(__dirname, 'client')
     : path.join(__dirname, '../client');
 app.use(express.static(clientRoot));
+
+// Mount payment routes (before ApiCalendar to avoid SPA catch-all interference)
+app.use('/payment', require('./middleware/payments'));
 
 // Mount API
 new ApiCalendar().expose(app);

@@ -79,6 +79,12 @@ const eventSchema = new mongoose.Schema({
         required: false,
         default: null
     },
+    message: {
+        type: String,
+        required: false,
+        default: null,
+        maxlength: 500
+    },
     date: {
         type: Date,
         required: true
@@ -111,6 +117,15 @@ const eventSchema = new mongoose.Schema({
             message: 'Invalid status'
         },
         default: 'confirmed'
+    },
+    paymentIntentId: {
+        type: String,
+        default: null
+    },
+    paymentStatus: {
+        type: String,
+        enum: ['free', 'pending', 'paid'],
+        default: 'free'
     }
 }, {
     timestamps: true

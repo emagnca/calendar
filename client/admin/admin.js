@@ -82,7 +82,7 @@ async function bootApp() {
             // Try to decode from token payload
             try {
                 const payload = JSON.parse(atob(authToken.split('.')[1]));
-                currentUser = { id: payload._id, email: payload.email, role: payload.role };
+                currentUser = { id: payload._id, email: payload.email, role: payload.role, groups: payload.groups || [] };
             } catch {
                 localStorage.removeItem('adminToken');
                 loginOverlay.style.display = 'flex';
@@ -91,7 +91,9 @@ async function bootApp() {
         }
     }
 
-    if (!['admin', 'superadmin'].includes(currentUser.role)) {
+    const isAdminUser = currentUser.role === 'superadmin' ||
+        (currentUser.groups || []).some(g => g.role === 'admin');
+    if (!isAdminUser) {
         loginOverlay.style.display = 'flex';
         loginError.textContent = t('admin_err_access_denied');
         return;
@@ -102,8 +104,37 @@ async function bootApp() {
     appEl.style.display = '';
 
     document.getElementById('groupLabel').textContent = currentGroup || '—';
-    document.getElementById('currentUserName').textContent = `${currentUser.name || currentUser.email} (${currentUser.role})`;
+    const displayRole = currentUser.role === 'superadmin' ? 'superadmin' : 'admin';
+    document.getElementById('currentUserName').textContent = `${currentUser.name || currentUser.email} (${displayRole})`;
     if (currentGroup) document.getElementById('calendarLink').href = `/${currentGroup}`;
+
+    // No group in URL — show the group picker instead of the tab UI
+    if (!currentGroup) {
+        document.getElementById('groupPicker').style.display = '';
+        document.querySelector('.layout').style.display = 'none';
+
+        let groups;
+        if (currentUser.role === 'superadmin') {
+            await loadAllGroups();
+            groups = allGroups.map(g => g.name || g);
+        } else {
+            groups = (currentUser.groups || [])
+                .filter(g => g.role === 'admin')
+                .map(g => g.name);
+        }
+
+        document.getElementById('groupPickerList').innerHTML = groups.length
+            ? groups.map(name => `
+                <a href="/admin/${name}" style="
+                    display:inline-block;padding:18px 32px;background:#1a73e8;color:#fff;
+                    border-radius:8px;text-decoration:none;font-size:1.1rem;font-weight:600;
+                    box-shadow:0 2px 8px rgba(0,0,0,0.15);transition:background 0.2s,transform 0.15s"
+                    onmouseover="this.style.background='#1558b0';this.style.transform='translateY(-2px)'"
+                    onmouseout="this.style.background='#1a73e8';this.style.transform=''"
+                >${name}</a>`).join('')
+            : `<p style="color:#999">${t('admin_picker_no_groups')}</p>`;
+        return;
+    }
 
     try {
         const gRes = await axios.get(`/groups/${activeGroup}`);
@@ -422,7 +453,7 @@ window.editUser = async (id) => {
         if (!u) return;
         openModal(t('admin_modal_edit_user'), userForm(u), async () => {
             try {
-                await axios.put(`/admin/users/${id}`, collectUser());
+                await axios.put(`/admin/users/${id}`, groupBody(collectUser()));
                 loadUsers();
                 return true;
             } catch (e) { alert(apiError(e)); return false; }
@@ -442,7 +473,7 @@ window.deleteUser = async (id) => {
 
 async function loadBookings() {
     const tbody = document.getElementById('bookingsBody');
-    tbody.innerHTML = `<tr><td colspan="6">${t('admin_loading')}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7">${t('admin_loading')}</td></tr>`;
     try {
         const from = document.getElementById('bookingsFrom').value;
         const to   = document.getElementById('bookingsTo').value;
@@ -456,17 +487,19 @@ async function loadBookings() {
             const d = new Date(e.date);
             const dateStr = d.toLocaleDateString();
             const name = localize(e.resourceName) || e.resourceId;
+            const msg = e.message ? `<span title="${e.message.replace(/"/g,'&quot;')}" style="cursor:help;border-bottom:1px dotted #999">${e.message.length > 40 ? e.message.slice(0,40)+'…' : e.message}</span>` : '';
             return `<tr>
                 <td>${dateStr}</td>
                 <td>${e.time}</td>
                 <td>${name}</td>
                 <td>${e.userEmail}</td>
+                <td>${msg}</td>
                 <td><span class="badge badge-${e.status}">${e.status}</span></td>
                 <td class="actions">
                     <button class="btn btn-sm btn-danger" onclick="deleteBooking('${e._id}')">${t('admin_btn_delete')}</button>
                 </td>
             </tr>`;
-        }).join('') || `<tr><td colspan="6">${t('admin_no_bookings')}</td></tr>`;
+        }).join('') || `<tr><td colspan="7">${t('admin_no_bookings')}</td></tr>`;
     } catch (e) {
         tbody.innerHTML = `<tr><td colspan="6" style="color:red">${apiError(e)}</td></tr>`;
     }
@@ -672,9 +705,5 @@ document.getElementById('btnSaveSettings').addEventListener('click', async () =>
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
-if (!currentGroup) {
-    document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif"><h2>No group specified</h2><p>Access via <code>/admin/&lt;groupname&gt;</code>.</p></div>';
-} else {
-    initI18n();
-    bootApp();
-}
+initI18n();
+bootApp();

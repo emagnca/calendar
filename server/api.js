@@ -23,6 +23,15 @@ const GroupRegistration = require('./models/GroupRegistration');
 const PublicUser = require('./models/PublicUser');
 const auth = require('./middleware/auth');
 
+// Returns the list of group names the user belongs to
+const userGroupNames = u => (u.groups || []).map(g => g.name);
+
+// Returns the user's role within a specific group, or null if not a member
+const userRoleInGroup = (u, groupName) => {
+    const entry = (u.groups || []).find(g => g.name === groupName);
+    return entry ? entry.role : null;
+};
+
 class ApiCalendar {
 
     // ── Middleware ────────────────────────────────────────────────────────────
@@ -38,7 +47,7 @@ class ApiCalendar {
             return auth(req, res, async () => {
                 if (!req.user) return res.status(401).json({ error: 'Authentication required' });
                 const user = await User.findById(req.user._id || req.user.userId);
-                if (!user || user.group !== groupName) {
+                if (!user || !userGroupNames(user).includes(groupName)) {
                     return res.status(403).json({ error: 'Not a member of this group' });
                 }
                 req.group = group;
@@ -95,13 +104,16 @@ class ApiCalendar {
         const existingUser = await User.findOne({ email: reg.adminEmail });
         if (!existingUser) {
             const user = new User({
-                email:   reg.adminEmail,
-                name:    reg.adminName,
-                group:   reg.groupName,
-                role:    'admin',
+                email:    reg.adminEmail,
+                name:     reg.adminName,
+                groups:   [{ name: reg.groupName, role: 'admin' }],
+                role:     'user',
                 isActive: true
             });
             await user.save();
+        } else if (!userGroupNames(existingUser).includes(reg.groupName)) {
+            existingUser.groups = [...(existingUser.groups || []), { name: reg.groupName, role: 'admin' }];
+            await existingUser.save();
         }
         reg.status = 'complete';
         await reg.save();
@@ -161,7 +173,7 @@ class ApiCalendar {
                 const adminUser = await User.findOne({ email: reg.adminEmail });
                 const jwtSecret = await getSecret('cal_jwt_secret');
                 const adminToken = jwt.sign(
-                    { _id: adminUser._id, email: adminUser.email, role: adminUser.role, group: adminUser.group },
+                    { _id: adminUser._id, email: adminUser.email, role: adminUser.role, groups: adminUser.groups || [] },
                     jwtSecret.secret || jwtSecret,
                     { expiresIn: '24h' }
                 );
@@ -235,13 +247,22 @@ class ApiCalendar {
                 user.loginCodeExpiry = undefined;
                 await user.save();
                 const jwtSecret = await getSecret('cal_jwt_secret');
-                const token = jwt.sign({ _id: user._id, email: user.email, role: user.role }, jwtSecret.secret || jwtSecret, { expiresIn: '24h' });
+                const token = jwt.sign({ _id: user._id, email: user.email, role: user.role, groups: user.groups || [] }, jwtSecret.secret || jwtSecret, { expiresIn: '24h' });
                 logMethodExit(methodName, { userId: user._id });
-                res.json({ token, user: { id: user._id, email: user.email, name: user.name, role: user.role } });
+                res.json({ token, user: { id: user._id, email: user.email, name: user.name, role: user.role, groups: user.groups || [] } });
             } catch (error) {
                 console.error(`Error in ${methodName}:`, error);
                 res.status(400).json({ error: error.message });
             }
+        });
+
+        router.get('/users/me', auth, async (req, res) => {
+            try {
+                const user = await User.findById(req.user._id || req.user.userId)
+                    .select('-password -loginCode -loginCodeExpiry');
+                if (!user) return res.status(404).json({ error: 'User not found' });
+                res.json(user.toObject());
+            } catch (e) { res.status(500).json({ error: e.message }); }
         });
 
         // Public calendar self-auth (no admin pre-registration required)
@@ -445,6 +466,7 @@ class ApiCalendar {
                     userId: (req.user && (req.user._id || req.user.userId)) ? (req.user._id || req.user.userId) : null,
                     userEmail: req.user ? req.user.email : null,
                     bookerName: (req.user && req.user.isPublic) ? req.user.name : null,
+                    message: req.body.message ? req.body.message.slice(0, 500) : null,
                     date: new Date(req.body.date),
                     time: req.body.time,
                     group: req.group.name,
@@ -473,7 +495,7 @@ class ApiCalendar {
                     // can cancel any booking
                 } else if (role === 'admin') {
                     // can cancel any booking within their group
-                    if (event.group !== req.group.name) {
+                    if (userRoleInGroup(req.adminUser || req.user, event.group) !== 'admin') {
                         return res.status(403).json({ error: 'Admins can only cancel bookings within their group' });
                     }
                 } else {
@@ -574,7 +596,9 @@ class ApiCalendar {
                 if (!req.user) return res.status(401).json({ error: 'Authentication required' });
                 const user = await User.findById(req.user._id || req.user.userId);
                 if (!user) return res.status(401).json({ error: 'User not found' });
-                if (!roles.includes(user.role)) {
+                const hasRole = roles.includes(user.role) ||
+                    (user.groups || []).some(g => roles.includes(g.role));
+                if (!hasRole) {
                     return res.status(403).json({ error: 'Insufficient permissions' });
                 }
                 req.adminUser = user;
@@ -586,7 +610,7 @@ class ApiCalendar {
             // Resolves which group this admin can operate on
             const groupName = (req.query.group || req.body.group || '').toLowerCase();
             if (!groupName) return res.status(400).json({ error: 'group parameter required' });
-            if (req.adminUser.role !== 'superadmin' && req.adminUser.group !== groupName) {
+            if (req.adminUser.role !== 'superadmin' && userRoleInGroup(req.adminUser, groupName) !== 'admin') {
                 return res.status(403).json({ error: 'Admins can only manage their own group' });
             }
             const group = await Group.findOne({ name: groupName });
@@ -623,7 +647,7 @@ class ApiCalendar {
         adminRouter.patch('/groups/:name', requireRole('admin', 'superadmin'), async (req, res) => {
             try {
                 const name = req.params.name.toLowerCase();
-                if (req.adminUser.role !== 'superadmin' && req.adminUser.group !== name) {
+                if (req.adminUser.role !== 'superadmin' && userRoleInGroup(req.adminUser, name) !== 'admin') {
                     return res.status(403).json({ error: 'Admins can only edit their own group' });
                 }
                 const update = { public: !!req.body.public };
@@ -680,7 +704,7 @@ class ApiCalendar {
             try {
                 const resource = await Resource.findById(req.params.id);
                 if (!resource) return res.status(404).json({ error: 'Resource not found' });
-                if (req.adminUser.role !== 'superadmin' && resource.group !== req.adminUser.group) {
+                if (req.adminUser.role !== 'superadmin' && userRoleInGroup(req.adminUser, resource.group) !== 'admin') {
                     return res.status(403).json({ error: 'Admins can only edit resources in their group' });
                 }
                 Object.assign(resource, req.body);
@@ -693,7 +717,7 @@ class ApiCalendar {
             try {
                 const resource = await Resource.findById(req.params.id);
                 if (!resource) return res.status(404).json({ error: 'Resource not found' });
-                if (req.adminUser.role !== 'superadmin' && resource.group !== req.adminUser.group) {
+                if (req.adminUser.role !== 'superadmin' && userRoleInGroup(req.adminUser, resource.group) !== 'admin') {
                     return res.status(403).json({ error: 'Admins can only delete resources in their group' });
                 }
                 await resource.deleteOne();
@@ -713,24 +737,12 @@ class ApiCalendar {
                 res.json(events);
             } catch (e) { res.status(500).json({ error: e.message }); }
         });
-
-        adminRouter.delete('/events/:id', requireRole('admin', 'superadmin'), async (req, res) => {
-            try {
-                const event = await Event.findById(req.params.id);
-                if (!event) return res.status(404).json({ error: 'Booking not found' });
-                if (req.adminUser.role !== 'superadmin' && event.group !== req.adminUser.group) {
-                    return res.status(403).json({ error: 'Admins can only delete bookings in their group' });
-                }
-                await event.deleteOne();
-                res.json({ message: 'Booking deleted' });
-            } catch (e) { res.status(400).json({ error: e.message }); }
-        });
-
         // Users (admin+)
         adminRouter.get('/users', requireRole('admin', 'superadmin'), adminGroupScope, async (req, res) => {
             try {
-                const users = await User.find({ group: req.group.name }).select('-password -loginCode -loginCodeExpiry').sort('email');
-                res.json(users);
+                const users = await User.find({ 'groups.name': req.group.name })
+                    .select('-password -loginCode -loginCodeExpiry').sort('email');
+                res.json(users.map(u => ({ ...u.toObject(), role: userRoleInGroup(u, req.group.name) || 'user' })));
             } catch (e) { res.status(500).json({ error: e.message }); }
         });
 
@@ -740,30 +752,32 @@ class ApiCalendar {
                 if (req.adminUser.role === 'admin' && role === 'superadmin') {
                     return res.status(403).json({ error: 'Admins cannot create superadmins' });
                 }
-                const user = new User({ email, name, group: req.group.name, role: role || 'user', password: password || undefined });
+                const user = new User({ email, name, groups: [{ name: req.group.name, role: role || 'user' }], role: 'user', password: password || undefined });
                 await user.save();
-                res.status(201).json({ _id: user._id, email: user.email, name: user.name, role: user.role, group: user.group, isActive: user.isActive });
+                res.status(201).json({ _id: user._id, email: user.email, name: user.name, role: userRoleInGroup(user, req.group.name), groups: user.groups, isActive: user.isActive });
             } catch (e) { res.status(400).json({ error: e.message }); }
         });
 
-        adminRouter.put('/users/:id', requireRole('admin', 'superadmin'), async (req, res) => {
+        adminRouter.put('/users/:id', requireRole('admin', 'superadmin'), adminGroupScope, async (req, res) => {
             try {
                 const user = await User.findById(req.params.id);
                 if (!user) return res.status(404).json({ error: 'User not found' });
-                if (req.adminUser.role !== 'superadmin' && user.group !== req.adminUser.group) {
+                if (req.adminUser.role !== 'superadmin' && !userGroupNames(user).includes(req.group.name)) {
                     return res.status(403).json({ error: 'Admins can only edit users in their group' });
-                }
-                if (req.adminUser.role === 'admin' && req.body.role === 'superadmin') {
-                    return res.status(403).json({ error: 'Admins cannot assign superadmin role' });
                 }
                 const { email, name, role, isActive, password } = req.body;
                 if (email) user.email = email;
                 if (name)  user.name  = name;
-                if (role)  user.role  = role;
                 if (isActive !== undefined) user.isActive = isActive;
                 if (password) user.password = password;
+                if (role) {
+                    const entry = user.groups.find(g => g.name === req.group.name);
+                    if (entry) entry.role = role;
+                    else user.groups.push({ name: req.group.name, role });
+                    user.markModified('groups');
+                }
                 await user.save();
-                res.json({ _id: user._id, email: user.email, name: user.name, role: user.role, group: user.group, isActive: user.isActive });
+                res.json({ _id: user._id, email: user.email, name: user.name, role: userRoleInGroup(user, req.group.name), groups: user.groups, isActive: user.isActive });
             } catch (e) { res.status(400).json({ error: e.message }); }
         });
 
@@ -771,7 +785,8 @@ class ApiCalendar {
             try {
                 const user = await User.findById(req.params.id);
                 if (!user) return res.status(404).json({ error: 'User not found' });
-                if (req.adminUser.role !== 'superadmin' && user.group !== req.adminUser.group) {
+                const hasSharedAdminGroup = (user.groups || []).some(ug => userRoleInGroup(req.adminUser, ug.name) === 'admin');
+                if (req.adminUser.role !== 'superadmin' && !hasSharedAdminGroup) {
                     return res.status(403).json({ error: 'Admins can only delete users in their group' });
                 }
                 await user.deleteOne();
@@ -843,6 +858,9 @@ class ApiCalendar {
         });
 
         // Serve admin SPA
+        app.get('/admin', (req, res) => {
+            res.sendFile(path.join(clientRoot, 'admin/index.html'));
+        });
         app.get('/admin/:group', (req, res) => {
             res.sendFile(path.join(clientRoot, 'admin/index.html'));
         });

@@ -46,6 +46,17 @@ const resourceSchema = new mongoose.Schema({
         type: Number,
         default: 1,
         min: 1
+    },
+    price: {
+        type: Number,
+        default: 0,     // 0 = free; otherwise smallest currency unit (e.g. öre / cents)
+        min: 0
+    },
+    currency: {
+        type: String,
+        default: 'sek',
+        lowercase: true,
+        trim: true
     }
 }, {
     timestamps: true

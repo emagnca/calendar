@@ -61,6 +61,13 @@
         </div>
     </header>
 
+    <!-- Group picker — shown when no group in URL -->
+    <div id="groupPicker" style="display:none;padding:40px 32px">
+        <h2 data-i18n="admin_picker_title">Your groups</h2>
+        <p data-i18n="admin_picker_subtitle" style="color:#666;margin-bottom:24px">Select a group to manage.</p>
+        <div id="groupPickerList" style="display:flex;flex-wrap:wrap;gap:16px"></div>
+    </div>
+
     <div class="layout">
         <nav class="sidebar">
             <ul>
@@ -133,6 +140,7 @@
                             <th data-i18n="admin_th_time">Time</th>
                             <th data-i18n="admin_th_resource">Resource</th>
                             <th data-i18n="admin_th_email">Email</th>
+                            <th data-i18n="admin_th_message">Message</th>
                             <th data-i18n="admin_th_status">Status</th>
                             <th></th>
                         </tr>

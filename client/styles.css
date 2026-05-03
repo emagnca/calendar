@@ -847,6 +847,31 @@ button[type="submit"]:hover {
     margin-top: 15px;
 }
 
+.landing-groups-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.landing-group-tile {
+    display: inline-block;
+    padding: 10px 22px;
+    background: #4CAF50;
+    color: #fff;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 1rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    transition: background 0.2s, transform 0.15s;
+}
+
+.landing-group-tile:hover {
+    background: #43a047;
+    transform: translateY(-2px);
+}
+
 @media (max-width: 768px) {
     .landing-header h1 {
         font-size: 32px;

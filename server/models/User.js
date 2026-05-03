@@ -23,11 +23,13 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    group: {
-        type: String,
-        trim: true,
-        lowercase: true,
-        default: null
+    groups: {
+        type: [{
+            _id: false,
+            name: { type: String, trim: true, lowercase: true },
+            role: { type: String, enum: ['user', 'admin'], default: 'user' }
+        }],
+        default: []
     },
     role: {
         type: String,
