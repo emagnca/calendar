@@ -477,6 +477,10 @@ class ApiCalendar {
                 res.status(201).json(event);
             } catch (error) {
                 console.error(`Error in ${methodName}:`, error);
+                // Handle MongoDB duplicate key error (E11000)
+                if (error.code === 11000) {
+                    return res.status(409).json({ error: 'Time slot is fully booked' });
+                }
                 res.status(400).json({ error: error.message });
             }
         });

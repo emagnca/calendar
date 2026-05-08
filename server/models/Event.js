@@ -131,7 +131,11 @@ const eventSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Compound index for fast availability lookups (uniqueness enforced at application level via capacity)
-eventSchema.index({ resourceId: 1, date: 1, time: 1 });
+// Compound unique index scoped to group to prevent double-booking within a group
+eventSchema.index({ group: 1, resourceId: 1, date: 1, time: 1, status: 1 }, { 
+    unique: true, 
+    sparse: true,
+    partialFilterExpression: { status: 'confirmed' }
+});
 
 module.exports = mongoose.model('Event', eventSchema, 'cal_events');
