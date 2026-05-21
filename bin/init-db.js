@@ -18,10 +18,10 @@ const User     = require(path.join(serverDir, 'models/User'));
 const GROUP_NAME = 'brf8';
 
 const DEFAULT_USER = {
-    email: 'admin@brf8.se',
-    name:  'Admin',
-    group: GROUP_NAME,
-    role:  'admin',
+    email:  'admin@brf8.se',
+    name:   'Admin',
+    role:   'admin',
+    groups: [{ name: GROUP_NAME, role: 'admin' }],
     // password: 'changeme'   // uncomment to set an initial password
 };
 

@@ -259,10 +259,10 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
                         const past = isSlotPast(slot.time);
                         const cls = past ? 'past' : (slot.isAvailable ? 'available' : 'booked');
                         const slotBookings = slot.bookings || [];
-                        const cancelButtons = slotBookings
-                            .filter(b => b.status === 'confirmed' && canCancelBooking(b))
-                            .map(b => `<span class="booking-info"><button onclick="cancelBooking('${b.id}', this)">${t('btn_cancel_booking')}</button></span>`)
-                            .join('');
+                        const myBooking = slotBookings.find(b => b.status === 'confirmed' && b.userId === currentUser?.id);
+                        const cancelButtons = myBooking
+                            ? `<span class="booking-info"><button onclick="cancelBooking('${myBooking.id}', this)">${t('btn_cancel_booking')}</button></span>`
+                            : '';
                         let action = '';
                         if (!past) {
                             if (slot.isAvailable) {
