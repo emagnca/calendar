@@ -51,7 +51,10 @@ const sendSms = async (to, subject, message) => {
     + '&nyckel=' + encodeURIComponent(key);
 
   try {
-    const response = await fetch(url, { method: 'GET' });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const response = await fetch(url, { method: 'GET', signal: controller.signal });
+    clearTimeout(timer);
     console.log('SMS sent to ' + number + ', status=' + response.status);
   } catch (err) {
     console.error('Failed to send SMS to ' + number + ':', err.message);

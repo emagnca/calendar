@@ -146,15 +146,44 @@ class ApiCalendar {
                     isPublic: !!isPublic, regToken, emailCode, smsCode
                 });
 
-                await sendEmail(
-                    adminEmail,
-                    `Din verifieringskod för EasyBooking är: <strong>${emailCode}</strong>`,
-                    'Din verifieringskod – EasyBooking'
-                ).catch(e => console.warn('sendEmail failed (non-fatal):', e.message));
-                await sendSms(adminPhone, 'EasyBooking', `Din verifieringskod är: ${smsCode}`)
-                    .catch(e => console.warn('sendSms failed (non-fatal):', e.message));
+                await Promise.all([
+                    sendEmail(
+                        adminEmail,
+                        `Din verifieringskod för EasyBooking är: <strong>${emailCode}</strong>`,
+                        'Din verifieringskod – EasyBooking'
+                    ).catch(e => console.warn('sendEmail failed (non-fatal):', e.message)),
+                    sendSms(adminPhone, 'EasyBooking', `Din verifieringskod är: ${smsCode}`)
+                        .catch(e => console.warn('sendSms failed (non-fatal):', e.message))
+                ]);
 
                 res.json({ token: regToken });
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        router.post('/group-registration/resume', async (req, res) => {
+            try {
+                const { adminEmail } = req.body;
+                if (!adminEmail) return res.status(400).json({ error: 'adminEmail is required' });
+                const reg = await GroupRegistration.findOne({ adminEmail: adminEmail.toLowerCase().trim(), status: 'pending' });
+                if (!reg) return res.status(404).json({ error: 'No pending registration found for this email' });
+
+                const emailCode = Math.floor(100000 + Math.random() * 900000).toString();
+                const smsCode   = Math.floor(100000 + Math.random() * 900000).toString();
+                reg.emailCode = emailCode;
+                reg.smsCode   = smsCode;
+                await reg.save();
+
+                await Promise.all([
+                    sendEmail(
+                        reg.adminEmail,
+                        `Din verifieringskod för EasyBooking är: <strong>${emailCode}</strong>`,
+                        'Din verifieringskod – EasyBooking'
+                    ).catch(e => console.warn('sendEmail failed (non-fatal):', e.message)),
+                    sendSms(reg.adminPhone, 'EasyBooking', `Din verifieringskod är: ${smsCode}`)
+                        .catch(e => console.warn('sendSms failed (non-fatal):', e.message))
+                ]);
+
+                res.json({ token: reg.regToken, groupName: reg.groupName });
             } catch (e) { res.status(500).json({ error: e.message }); }
         });
 
@@ -477,10 +506,6 @@ class ApiCalendar {
                 res.status(201).json(event);
             } catch (error) {
                 console.error(`Error in ${methodName}:`, error);
-                // Handle MongoDB duplicate key error (E11000)
-                if (error.code === 11000) {
-                    return res.status(409).json({ error: 'Time slot is fully booked' });
-                }
                 res.status(400).json({ error: error.message });
             }
         });

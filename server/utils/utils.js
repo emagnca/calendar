@@ -1,6 +1,10 @@
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 
-const client = new SecretsManagerClient({ region: process.env.AWS_REGION || 'eu-north-1' });
+const client = new SecretsManagerClient({
+    region: process.env.AWS_REGION || 'eu-north-1',
+    maxAttempts: 1,
+    requestTimeout: 5000
+});
 
 const _cache = {};
 

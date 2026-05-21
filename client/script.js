@@ -878,15 +878,166 @@ function getPublicBookerInfo() {
     });
 }
 
+// ── Stripe Payment ────────────────────────────────────────────────────────────
+
+let stripeInstance = null;
+
+async function initStripe() {
+    if (stripeInstance) return stripeInstance;
+    if (typeof Stripe === 'undefined') throw new Error('Stripe.js not loaded');
+    const res = await axios.get('/payment/config', { baseURL: '' });
+    stripeInstance = Stripe(res.data.publishableKey);
+    return stripeInstance;
+}
+
+function formatAmount(amountMinor, currency) {
+    return (amountMinor / 100).toFixed(2) + ' ' + currency.toUpperCase();
+}
+
+async function showPaymentModal(resourceId, time, resourceObj) {
+    let stripe;
+    try {
+        stripe = await initStripe();
+    } catch (e) {
+        alert(t('payment_error_stripe_unavailable'));
+        return;
+    }
+
+    const amountStr = formatAmount(resourceObj.price, resourceObj.currency || 'sek');
+
+    const overlay = document.createElement('div');
+    overlay.className = 'payment-overlay';
+    overlay.innerHTML = `
+        <div class="payment-modal-box">
+            <h3>${t('payment_title')}</h3>
+            <p class="payment-amount-line">${t('payment_amount', amountStr)}</p>
+            <label class="payment-card-label">${t('payment_card_label')}</label>
+            <div id="stripe-card-element" class="stripe-card-element"></div>
+            <div id="stripe-card-error" class="stripe-card-error"></div>
+            <div class="form-group" style="margin:14px 0 4px">
+                <label style="font-size:0.9rem;color:#555">${t('booking_message_label')}</label>
+                <textarea id="paymentMessage" rows="3"
+                    style="width:100%;resize:vertical;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:0.9rem;box-sizing:border-box;margin-top:4px"
+                    placeholder="${t('booking_message_placeholder')}"></textarea>
+            </div>
+            <div class="payment-actions">
+                <button id="payBtn" class="btn-pay">${t('payment_btn_pay', amountStr)}</button>
+                <button id="cancelPayBtn" class="btn-pay-cancel">${t('btn_cancel')}</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const elements = stripe.elements();
+    const cardElement = elements.create('card', {
+        style: {
+            base: { fontSize: '16px', color: '#2c3e50', '::placeholder': { color: '#aab7c4' } },
+            invalid: { color: '#dc3545' }
+        }
+    });
+    cardElement.mount('#stripe-card-element');
+
+    const errorEl = () => document.getElementById('stripe-card-error');
+    cardElement.on('change', e => { errorEl().textContent = e.error ? e.error.message : ''; });
+
+    document.getElementById('cancelPayBtn').addEventListener('click', () => {
+        cardElement.destroy();
+        overlay.remove();
+    });
+
+    document.getElementById('payBtn').addEventListener('click', async () => {
+        const payBtn = document.getElementById('payBtn');
+        payBtn.disabled = true;
+        payBtn.textContent = t('payment_processing');
+        errorEl().textContent = '';
+
+        try {
+            const intentRes = await axios.post('/payment/create-intent', {
+                group:      currentGroup,
+                resourceId,
+                date:       localDateStr(selectedDate),
+                time,
+                bookerName: currentUser?.name || currentUser?.email || '',
+                message:    overlay.querySelector('#paymentMessage')?.value.trim() || undefined
+            }, { baseURL: '' });
+
+            const { error } = await stripe.confirmCardPayment(
+                intentRes.data.clientSecret,
+                { payment_method: { card: cardElement } }
+            );
+
+            if (error) {
+                errorEl().textContent = error.message;
+                payBtn.disabled = false;
+                payBtn.textContent = t('payment_btn_pay', amountStr);
+                return;
+            }
+
+            cardElement.destroy();
+            overlay.remove();
+            alert(t('payment_success'));
+
+            const sel = document.getElementById('dayViewResourceSelect');
+            if (sel && sel.value === resourceId) sel.dispatchEvent(new Event('change'));
+            await fetchBookingsForMonth(currentDate);
+            renderCalendar();
+        } catch (e) {
+            errorEl().textContent = e.response?.data?.error || t('payment_error_generic');
+            payBtn.disabled = false;
+            payBtn.textContent = t('payment_btn_pay', amountStr);
+        }
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+function promptBookingMessage() {
+    return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:10000';
+        overlay.innerHTML = `
+            <div style="background:#fff;border-radius:10px;padding:28px 24px;width:min(420px,90vw);box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+                <h4 style="margin:0 0 14px;font-size:1.05rem;color:#333">${t('booking_message_label')}</h4>
+                <textarea id="inlineBookingMsg" rows="4"
+                    style="width:100%;resize:vertical;padding:10px;border:1px solid #ccc;border-radius:6px;font-size:0.95rem;box-sizing:border-box"
+                    placeholder="${t('booking_message_placeholder')}"></textarea>
+                <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
+                    <button id="inlineMsgCancel" style="padding:9px 20px;border:1px solid #ccc;border-radius:6px;background:#fff;color:#333;cursor:pointer">${t('btn_cancel')}</button>
+                    <button id="inlineMsgConfirm" style="padding:9px 20px;background:#007bff;color:#fff;border:none;border-radius:6px;cursor:pointer">${t('btn_book')}</button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+        document.getElementById('inlineMsgConfirm').onclick = () => {
+            const msg = document.getElementById('inlineBookingMsg').value.trim();
+            overlay.remove();
+            resolve(msg);
+        };
+        document.getElementById('inlineMsgCancel').onclick = () => {
+            overlay.remove();
+            resolve(null);
+        };
+    });
+}
+
 async function handleInlineBooking(resource, time) {
     if (!selectedDate) return;
+
+    const resourceObj = resources.find(r => r.resourceId === resource);
+    if (resourceObj && resourceObj.price > 0) {
+        await showPaymentModal(resource, time, resourceObj);
+        return;
+    }
+
+    const message = await promptBookingMessage();
+    if (message === null) return;
 
     try {
         // Create booking through API
         await axios.post('/events', {
             resourceId: resource,
             date: localDateStr(selectedDate),
-            time: time
+            time: time,
+            message: message || undefined
         }, { params: groupParam() });
 
         // Refresh bookings for this date
@@ -958,17 +1109,27 @@ async function handleBooking(event) {
     const resource = document.getElementById('resourceSelect').value;
     const time = document.getElementById('timeSlot').value;
 
+    const resourceObj = resources.find(r => r.resourceId === resource);
+    if (resourceObj && resourceObj.price > 0) {
+        bookingModal.style.display = 'none';
+        await showPaymentModal(resource, time, resourceObj);
+        return;
+    }
+
     try {
         // Create booking through API
         await axios.post('/events', {
             resourceId: resource,
             date: localDateStr(selectedDate),
-            time: time
+            time: time,
+            message: document.getElementById('bookingMessage')?.value.trim() || undefined
         }, { params: groupParam() });
 
         // Close modal and reset form
         bookingModal.style.display = 'none';
         bookingForm.reset();
+        const msgEl = document.getElementById('bookingMessage');
+        if (msgEl) msgEl.value = '';
         
         // Show confirmation
         alert(t('alert_booking_confirmed'));
@@ -1035,6 +1196,97 @@ styles.textContent = `
     .logout-button:hover {
         background-color: #c82333;
     }
+
+    .payment-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .payment-modal-box {
+        background: #fff;
+        border-radius: 10px;
+        padding: 28px;
+        max-width: 420px;
+        width: 90%;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    }
+
+    .payment-modal-box h3 {
+        margin: 0 0 6px;
+        font-size: 1.2rem;
+        color: #2c3e50;
+    }
+
+    .payment-amount-line {
+        color: #555;
+        margin: 0 0 20px;
+        font-size: 1.05rem;
+    }
+
+    .payment-card-label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: #444;
+        margin-bottom: 8px;
+    }
+
+    .stripe-card-element {
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        padding: 10px 12px;
+        background: #f9f9f9;
+        transition: border-color 0.2s;
+    }
+
+    .stripe-card-element.StripeElement--focus { border-color: #4CAF50; }
+    .stripe-card-element.StripeElement--invalid { border-color: #dc3545; }
+
+    .stripe-card-error {
+        color: #dc3545;
+        font-size: 13px;
+        margin-top: 6px;
+        min-height: 18px;
+    }
+
+    .payment-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+    }
+
+    .btn-pay {
+        flex: 1;
+        padding: 10px;
+        background: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .btn-pay:hover:not(:disabled) { background: #43a047; }
+    .btn-pay:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .btn-pay-cancel {
+        padding: 10px 18px;
+        background: #eee;
+        color: #333;
+        border: none;
+        border-radius: 5px;
+        font-size: 15px;
+        cursor: pointer;
+    }
+
+    .btn-pay-cancel:hover { background: #ddd; }
 
     .time-slot.past {
         background-color: #f5f5f5;
@@ -1755,7 +2007,7 @@ function displayMyBookings(bookings) {
 
 
 // Show landing page with service information and screenshots
-function showLandingPage() {
+async function showLandingPage() {
     // Hide main calendar UI
     document.querySelector('.container').style.display = 'none';
     document.querySelector('.resources-section').style.display = 'none';
@@ -1857,6 +2109,22 @@ function showLandingPage() {
         if (e.key === 'Enter') navigateToGroup();
     });
     groupInput.addEventListener('input', () => { statusMsg.style.display = 'none'; });
+
+    // Populate the user's groups section if logged in
+    if (authToken) {
+        try {
+            const meRes = await axios.get('/users/me');
+            const groups = meRes.data.groups || [];
+            if (groups.length) {
+                document.getElementById('myGroupsList').innerHTML = groups.map(g => `
+                    <a href="/${g.name}" class="landing-group-tile">
+                        ${g.name}<span style="font-size:0.75rem;opacity:0.8;margin-left:6px">(${g.role})</span>
+                    </a>
+                `).join('');
+                document.getElementById('myGroupsSection').style.display = '';
+            }
+        } catch (_) { /* token invalid or endpoint unavailable — silently skip */ }
+    }
 }
 
 let _initDone = false;
@@ -1870,6 +2138,11 @@ async function init() {
 
     // Update user info display
     updateUserInfo();
+
+    // Set auth header once for all subsequent axios calls
+    if (authToken) {
+        axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
+    }
 
     // No group in URL — show landing page
     if (!currentGroup) {
@@ -1921,7 +2194,6 @@ async function init() {
     if (groupInfo.public) {
         // Public group: require light self-auth (any name + email + code), no admin pre-registration
         if (authToken) {
-            axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
             initializeCalendar().catch(err => {
                 if (err.response?.status === 401 || err.response?.status === 403) {
                     localStorage.removeItem('authToken');
@@ -1937,7 +2209,6 @@ async function init() {
     } else {
         // Private group: require authentication
         if (authToken) {
-            axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
             initializeCalendar().catch(error => {
                 if (error.response?.status === 401 || error.response?.status === 403) {
                     localStorage.removeItem('authToken');
