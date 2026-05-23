@@ -57,7 +57,12 @@ const resourceSchema = new mongoose.Schema({
         default: 'sek',
         lowercase: true,
         trim: true
-    }
+    },
+    blockedSlots: [{
+        start: { type: String, required: true },
+        end:   { type: String, required: true },
+        label: { type: String, default: '' }
+    }]
 }, {
     timestamps: true
 });

@@ -69,10 +69,11 @@ class ApiCalendar {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     getBookingConfig = (resource) => ({
-        duration: resource.slot_length || 60,
-        startTime: resource.earliest || '09:00',
-        endTime: resource.latest || '17:00',
-        bookableDays: resource.bookableDays && resource.bookableDays.length ? resource.bookableDays : [0,1,2,3,4,5,6]
+        duration:     resource.slot_length || 60,
+        startTime:    resource.earliest || '09:00',
+        endTime:      resource.latest || '17:00',
+        bookableDays: resource.bookableDays && resource.bookableDays.length ? resource.bookableDays : [0,1,2,3,4,5,6],
+        blockedSlots: resource.blockedSlots || []
     });
 
     generateTimeSlots = (startTime, endTime, duration) => {
@@ -463,6 +464,11 @@ class ApiCalendar {
                 );
                 if (isBlocked) return res.status(409).json({ error: 'This date/time is blocked by the administrator' });
 
+                const resourceBlocked = (resource.blockedSlots || []).some(
+                    b => req.body.time >= b.start && req.body.time < b.end
+                );
+                if (resourceBlocked) return res.status(409).json({ error: 'This time slot is not available for booking' });
+
                 const bookingCount = await Event.countDocuments({
                     resourceId: req.body.resourceId,
                     date: new Date(req.body.date),
@@ -583,12 +589,13 @@ class ApiCalendar {
                     const matchingBlock = blocks.find(bp =>
                         !bp.startTime || (time >= bp.startTime && time < bp.endTime)
                     );
-                    const isBlocked = !!matchingBlock;
+                    const resourceBlock = (resource.blockedSlots || []).find(b => time >= b.start && time < b.end);
+                    const isBlocked = !!matchingBlock || !!resourceBlock;
                     return {
                         time,
                         isAvailable: !isBlocked && spotsLeft > 0,
                         isBlocked,
-                        blockReason: matchingBlock?.reason || null,
+                        blockReason: matchingBlock?.reason || resourceBlock?.label || null,
                         spotsLeft: isBlocked ? 0 : spotsLeft,
                         capacity,
                         bookings: slotBookings.map(b => ({

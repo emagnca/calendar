@@ -261,7 +261,7 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
                         const slotBookings = slot.bookings || [];
                         const myBooking = slotBookings.find(b => b.status === 'confirmed' && b.userId === currentUser?.id);
                         const cancelButtons = myBooking
-                            ? `<span class="booking-info"><button onclick="cancelBooking('${myBooking.id}', this)">${t('btn_cancel_booking')}</button></span>`
+                            ? `<span class="booking-info"><button type="button" class="cancel-booking-btn" onclick="cancelBooking('${myBooking.id}', this)">${t('btn_cancel_booking')}</button></span>`
                             : '';
                         let action = '';
                         if (!past) {
@@ -1896,7 +1896,10 @@ function updateUserInfo() {
     const adminLink = document.getElementById('adminLink');
 
     // Determine admin status from calendar auth OR a live adminToken in localStorage
-    const roleFromCalendar = currentUser && ['admin', 'superadmin'].includes(currentUser.role);
+    const roleFromCalendar = currentUser && (
+        ['admin', 'superadmin'].includes(currentUser.role) ||
+        (currentGroup && (currentUser.groups || []).some(g => g.name === currentGroup && g.role === 'admin'))
+    );
     const adminPayload = !roleFromCalendar && decodeJwtPayload(localStorage.getItem('adminToken') || '');
     const roleFromAdmin = adminPayload &&
         ['admin', 'superadmin'].includes(adminPayload.role) &&
@@ -1996,7 +1999,7 @@ function displayMyBookings(bookings) {
                     <span class="status">${booking.status}</span>
                 </div>
                 ${booking.status === 'confirmed' ? `
-                    <button onclick="cancelBooking('${booking._id}', this)">${t('btn_cancel_booking')}</button>
+                    <button type="button" class="cancel-booking-btn" onclick="cancelBooking('${booking._id}', this)">${t('btn_cancel_booking')}</button>
                 ` : ''}
             </div>
         `;

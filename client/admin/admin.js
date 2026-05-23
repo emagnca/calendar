@@ -328,6 +328,20 @@ function resourceForm(r = {}) {
                     return `<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" class="f-bookableDay" value="${n}" ${chk}> ${t(key)}</label>`;
                 }).join('')}
             </div>
+        </div>
+        <div class="field">
+            <label>${t('admin_field_blocked_slots')}</label>
+            <div id="f-blockedSlots">
+                ${(r.blockedSlots || []).map(s => `
+                <div class="blocked-slot-row" style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
+                    <input class="f-bs-start" type="time" value="${s.start || ''}" style="width:100px">
+                    <span>–</span>
+                    <input class="f-bs-end" type="time" value="${s.end || ''}" style="width:100px">
+                    <input class="f-bs-label" type="text" value="${s.label || ''}" placeholder="${t('admin_hint_blocked_slot_label')}" style="flex:1">
+                    <button type="button" onclick="this.closest('.blocked-slot-row').remove()" style="color:red;font-weight:bold;border:none;background:none;cursor:pointer">✕</button>
+                </div>`).join('')}
+            </div>
+            <button type="button" onclick="addBlockedSlotRow()" style="margin-top:6px;font-size:.85em">${t('admin_btn_add_blocked_slot')}</button>
         </div>`;
 }
 
@@ -336,6 +350,13 @@ function collectResource() {
     const name = Object.fromEntries(
         groupLangs().map(lang => [lang, document.getElementById(`f-name-${lang}`)?.value.trim() || ''])
     );
+    const blockedSlots = [...document.querySelectorAll('.blocked-slot-row')]
+        .map(row => ({
+            start: row.querySelector('.f-bs-start').value.trim(),
+            end:   row.querySelector('.f-bs-end').value.trim(),
+            label: row.querySelector('.f-bs-label').value.trim(),
+        }))
+        .filter(s => s.start && s.end);
     return {
         ...(resourceIdEl ? { resourceId: resourceIdEl.value.trim() } : {}),
         name,
@@ -345,8 +366,24 @@ function collectResource() {
         earliest:     document.getElementById('f-earliest').value.trim(),
         latest:       document.getElementById('f-latest').value.trim(),
         bookableDays: [...document.querySelectorAll('.f-bookableDay:checked')].map(cb => parseInt(cb.value, 10)),
+        blockedSlots,
     };
 }
+
+window.addBlockedSlotRow = () => {
+    const placeholder = (typeof t === 'function') ? t('admin_hint_blocked_slot_label') : 'e.g. Lunch';
+    const row = document.createElement('div');
+    row.className = 'blocked-slot-row';
+    row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:4px';
+    row.innerHTML = `
+        <input class="f-bs-start" type="time" style="width:100px">
+        <span>–</span>
+        <input class="f-bs-end" type="time" style="width:100px">
+        <input class="f-bs-label" type="text" placeholder="${placeholder}" style="flex:1">
+        <button type="button" onclick="this.closest('.blocked-slot-row').remove()" style="color:red;font-weight:bold;border:none;background:none;cursor:pointer">✕</button>
+    `;
+    document.getElementById('f-blockedSlots').appendChild(row);
+};
 
 document.getElementById('btnAddResource').addEventListener('click', () => {
     openModal(t('admin_modal_add_resource'), resourceForm(), async () => {
