@@ -543,6 +543,20 @@ button[type="submit"]:hover {
     background: #45a049;
 }
 
+.cancel-booking-btn {
+    background: #d32f2f;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.cancel-booking-btn:hover {
+    background: #b71c1c;
+}
+
 .inline-booking-form {
     display: flex;
     align-items: center;

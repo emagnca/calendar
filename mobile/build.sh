@@ -91,7 +91,7 @@ else:
     print('  WARNING: currentGroup line not found in script.js — patch skipped.')
 
 # Patch both booking confirmation alerts to offer calendar add
-calendar_hook = "\n        if (typeof window.offerCalendarAdd === 'function') { window.offerCalendarAdd(selectedDate, time, resource); }"
+calendar_hook = "\n        if (typeof window.offerCalendarAdd === 'function') { const _r = resources.find(r => r.resourceId === resource); window.offerCalendarAdd(selectedDate, time, resource, _r ? (_r.slot_length || 60) : 60, _r && typeof localize === 'function' ? localize(_r.name) : resource); }"
 confirmation   = "alert(t('alert_booking_confirmed'));"
 if confirmation in src:
     src = src.replace(confirmation, confirmation + calendar_hook)
