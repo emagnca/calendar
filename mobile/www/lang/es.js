@@ -4,6 +4,7 @@ const es = {
 
     // Nav / header
     logout: 'Cerrar sesión',
+    link_admin_view: 'Admin',
 
     // Calendar weekdays
     day_sun: 'Dom', day_mon: 'Lun', day_tue: 'Mar', day_wed: 'Mié',
@@ -159,6 +160,9 @@ const es = {
     admin_modal_edit_user: 'Editar usuario',
     admin_modal_add_group: 'Añadir grupo',
     admin_modal_edit_group: 'Editar grupo',
+    admin_field_blocked_slots: 'Franjas horarias bloqueadas',
+    admin_hint_blocked_slot_label: 'Etiqueta, p. ej. Almuerzo',
+    admin_btn_add_blocked_slot: '+ Añadir franja bloqueada',
     admin_confirm_delete_resource: '¿Eliminar este recurso? Las reservas existentes se conservarán.',
     admin_confirm_delete_user: '¿Eliminar este usuario? Esta acción no se puede deshacer.',
     admin_confirm_delete_group: '¿Eliminar el grupo "{0}"? Sus recursos y usuarios NO serán eliminados.',

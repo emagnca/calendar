@@ -9,8 +9,9 @@ let allGroups = [];
 // Called by i18n.js when language changes — re-render current tab
 function onLanguageChange() { loadCurrentTab(); }
 
-let currentUser = null;
-let authToken   = localStorage.getItem('adminToken');
+let currentUser      = null;
+let currentGroupInfo = null;
+let authToken        = localStorage.getItem('adminToken') || localStorage.getItem('authToken');
 if (authToken) axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -44,6 +45,8 @@ document.getElementById('btnVerifyCode').addEventListener('click', async () => {
         authToken   = res.data.token;
         currentUser = res.data.user;
         localStorage.setItem('adminToken', authToken);
+        localStorage.setItem('authToken', authToken);
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
         axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
         await bootApp();
     } catch (e) {
@@ -53,6 +56,8 @@ document.getElementById('btnVerifyCode').addEventListener('click', async () => {
 
 document.getElementById('btnLogout').addEventListener('click', () => {
     localStorage.removeItem('adminToken');
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('currentUser');
     delete axios.defaults.headers.common['Authorization'];
     currentUser = null;
     appEl.style.display = 'none';
@@ -77,7 +82,7 @@ async function bootApp() {
             // Try to decode from token payload
             try {
                 const payload = JSON.parse(atob(authToken.split('.')[1]));
-                currentUser = { id: payload._id, email: payload.email, role: payload.role };
+                currentUser = { id: payload._id, email: payload.email, role: payload.role, groups: payload.groups || [] };
             } catch {
                 localStorage.removeItem('adminToken');
                 loginOverlay.style.display = 'flex';
@@ -86,7 +91,9 @@ async function bootApp() {
         }
     }
 
-    if (!['admin', 'superadmin'].includes(currentUser.role)) {
+    const isAdminUser = currentUser.role === 'superadmin' ||
+        (currentUser.groups || []).some(g => g.role === 'admin');
+    if (!isAdminUser) {
         loginOverlay.style.display = 'flex';
         loginError.textContent = t('admin_err_access_denied');
         return;
@@ -97,7 +104,42 @@ async function bootApp() {
     appEl.style.display = '';
 
     document.getElementById('groupLabel').textContent = currentGroup || '—';
-    document.getElementById('currentUserName').textContent = `${currentUser.name || currentUser.email} (${currentUser.role})`;
+    const displayRole = currentUser.role === 'superadmin' ? 'superadmin' : 'admin';
+    document.getElementById('currentUserName').textContent = `${currentUser.name || currentUser.email} (${displayRole})`;
+    if (currentGroup) document.getElementById('calendarLink').href = `/${currentGroup}`;
+
+    // No group in URL — show the group picker instead of the tab UI
+    if (!currentGroup) {
+        document.getElementById('groupPicker').style.display = '';
+        document.querySelector('.layout').style.display = 'none';
+
+        let groups;
+        if (currentUser.role === 'superadmin') {
+            await loadAllGroups();
+            groups = allGroups.map(g => g.name || g);
+        } else {
+            groups = (currentUser.groups || [])
+                .filter(g => g.role === 'admin')
+                .map(g => g.name);
+        }
+
+        document.getElementById('groupPickerList').innerHTML = groups.length
+            ? groups.map(name => `
+                <a href="/admin/${name}" style="
+                    display:inline-block;padding:18px 32px;background:#1a73e8;color:#fff;
+                    border-radius:8px;text-decoration:none;font-size:1.1rem;font-weight:600;
+                    box-shadow:0 2px 8px rgba(0,0,0,0.15);transition:background 0.2s,transform 0.15s"
+                    onmouseover="this.style.background='#1558b0';this.style.transform='translateY(-2px)'"
+                    onmouseout="this.style.background='#1a73e8';this.style.transform=''"
+                >${name}</a>`).join('')
+            : `<p style="color:#999">${t('admin_picker_no_groups')}</p>`;
+        return;
+    }
+
+    try {
+        const gRes = await axios.get(`/groups/${activeGroup}`);
+        currentGroupInfo = gRes.data;
+    } catch (_) {}
 
     // Show Groups tab only for superadmin
     if (currentUser.role === 'superadmin') {
@@ -139,6 +181,8 @@ function loadCurrentTab() {
     else if (activeTab === 'users')  loadUsers();
     else if (activeTab === 'bookings') loadBookings();
     else if (activeTab === 'groups') loadGroups();
+    else if (activeTab === 'blocked')  loadBlockedPeriods();
+    else if (activeTab === 'settings') loadSettings();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -149,6 +193,10 @@ function groupQuery() {
 
 function groupBody(extra = {}) {
     return activeGroup ? { group: activeGroup, ...extra } : extra;
+}
+
+function groupLangs() {
+    return currentGroupInfo?.languages?.length ? currentGroupInfo.languages : ['sv', 'en'];
 }
 
 async function loadAllGroups() {
@@ -179,9 +227,13 @@ function initGroupSwitcher() {
         `<option value="${g.name}" ${g.name === activeGroup ? 'selected' : ''}>${g.name}</option>`
     ).join('');
     sel.style.display = '';
-    sel.addEventListener('change', e => {
+    sel.addEventListener('change', async e => {
         activeGroup = e.target.value;
         document.getElementById('groupLabel').textContent = activeGroup;
+        try {
+            const gRes = await axios.get(`/groups/${activeGroup}`);
+            currentGroupInfo = gRes.data;
+        } catch (_) {}
         loadCurrentTab();
     });
 }
@@ -219,7 +271,7 @@ document.getElementById('btnModalSave').addEventListener('click', async () => {
 
 async function loadResources() {
     const tbody = document.getElementById('resourcesBody');
-    tbody.innerHTML = `<tr><td colspan="6">${t('admin_loading')}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7">${t('admin_loading')}</td></tr>`;
     try {
         const res = await axios.get(`/admin/resources${groupQuery()}`);
         tbody.innerHTML = res.data.map(r => `
@@ -227,38 +279,37 @@ async function loadResources() {
                 <td><code>${r.resourceId}</code></td>
                 <td>${localize(r.name)}</td>
                 <td>${r.slot_length}</td>
+                <td>${r.capacity || 1}</td>
                 <td>${r.earliest} – ${r.latest}</td>
                 <td><span class="badge ${r.isActive ? 'badge-active' : 'badge-inactive'}">${r.isActive ? t('admin_yes') : t('admin_no_val')}</span></td>
                 <td class="actions">
                     <button class="btn btn-sm btn-warning" onclick="editResource('${r._id}')">${t('admin_btn_edit')}</button>
                     <button class="btn btn-sm btn-danger" onclick="deleteResource('${r._id}')">${t('admin_btn_delete')}</button>
                 </td>
-            </tr>`).join('') || `<tr><td colspan="6">${t('admin_no_resources')}</td></tr>`;
+            </tr>`).join('') || `<tr><td colspan="7">${t('admin_no_resources')}</td></tr>`;
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="6" style="color:red">${apiError(e)}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="color:red">${apiError(e)}</td></tr>`;
     }
 }
 
 function resourceForm(r = {}) {
-    const nameSv = r.name?.sv || r.name || '';
-    const nameEn = r.name?.en || '';
-    const descSv = r.description?.sv || r.description || '';
-    const descEn = r.description?.en || '';
+    const langs = groupLangs();
+    const nameFields = langs.map(lang => {
+        const val = (typeof r.name === 'object' ? (r.name?.[lang] ?? '') : (lang === (langs[0]) ? (r.name || '') : ''));
+        return `<div class="field"><label>${t('admin_field_name')} (${lang.toUpperCase()})</label><input id="f-name-${lang}" value="${val}"></div>`;
+    }).join('');
     return `
+        ${r._id ? `
         <div class="field"><label>${t('admin_field_resource_id')}</label>
-            <input id="f-resourceId" value="${r.resourceId || ''}" ${r._id ? 'readonly' : ''}>
+            <input id="f-resourceId" value="${r.resourceId || ''}" readonly>
             <div class="hint">${t('admin_hint_resource_id')}</div>
-        </div>
+        </div>` : ''}
         <div class="field-row">
-            <div class="field"><label>${t('admin_field_name_sv')}</label><input id="f-nameSv" value="${nameSv}"></div>
-            <div class="field"><label>${t('admin_field_name_en')}</label><input id="f-nameEn" value="${nameEn}"></div>
-        </div>
-        <div class="field-row">
-            <div class="field"><label>${t('admin_field_desc_sv')}</label><input id="f-descSv" value="${descSv}"></div>
-            <div class="field"><label>${t('admin_field_desc_en')}</label><input id="f-descEn" value="${descEn}"></div>
+            ${nameFields}
         </div>
         <div class="field-row">
             <div class="field"><label>${t('admin_field_slot_len')}</label><input id="f-slotLen" type="number" value="${r.slot_length || 60}" min="5"></div>
+            <div class="field"><label>${t('admin_field_capacity')}</label><input id="f-capacity" type="number" value="${r.capacity || 1}" min="1"></div>
             <div class="field"><label>${t('admin_field_active')}</label>
                 <label class="toggle-label" style="margin-top:8px">
                     <input type="checkbox" id="f-isActive" ${r.isActive !== false ? 'checked' : ''}> ${t('admin_field_active')}
@@ -268,20 +319,71 @@ function resourceForm(r = {}) {
         <div class="field-row">
             <div class="field"><label>${t('admin_field_earliest')}</label><input id="f-earliest" value="${r.earliest || '09:00'}" placeholder="09:00"></div>
             <div class="field"><label>${t('admin_field_latest')}</label><input id="f-latest" value="${r.latest || '17:00'}" placeholder="17:00"></div>
+        </div>
+        <div class="field">
+            <label>${t('admin_field_bookable_days')}</label>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px">
+                ${[[1,'day_mon'],[2,'day_tue'],[3,'day_wed'],[4,'day_thu'],[5,'day_fri'],[6,'day_sat'],[0,'day_sun']].map(([n, key]) => {
+                    const chk = (!r.bookableDays || r.bookableDays.includes(n)) ? 'checked' : '';
+                    return `<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" class="f-bookableDay" value="${n}" ${chk}> ${t(key)}</label>`;
+                }).join('')}
+            </div>
+        </div>
+        <div class="field">
+            <label>${t('admin_field_blocked_slots')}</label>
+            <div id="f-blockedSlots">
+                ${(r.blockedSlots || []).map(s => `
+                <div class="blocked-slot-row" style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
+                    <input class="f-bs-start" type="time" value="${s.start || ''}" style="width:100px">
+                    <span>–</span>
+                    <input class="f-bs-end" type="time" value="${s.end || ''}" style="width:100px">
+                    <input class="f-bs-label" type="text" value="${s.label || ''}" placeholder="${t('admin_hint_blocked_slot_label')}" style="flex:1">
+                    <button type="button" onclick="this.closest('.blocked-slot-row').remove()" style="color:red;font-weight:bold;border:none;background:none;cursor:pointer">✕</button>
+                </div>`).join('')}
+            </div>
+            <button type="button" onclick="addBlockedSlotRow()" style="margin-top:6px;font-size:.85em">${t('admin_btn_add_blocked_slot')}</button>
         </div>`;
 }
 
 function collectResource() {
+    const resourceIdEl = document.getElementById('f-resourceId');
+    const name = Object.fromEntries(
+        groupLangs().map(lang => [lang, document.getElementById(`f-name-${lang}`)?.value.trim() || ''])
+    );
+    const blockedSlots = [...document.querySelectorAll('.blocked-slot-row')]
+        .map(row => ({
+            start: row.querySelector('.f-bs-start').value.trim(),
+            end:   row.querySelector('.f-bs-end').value.trim(),
+            label: row.querySelector('.f-bs-label').value.trim(),
+        }))
+        .filter(s => s.start && s.end);
     return {
-        resourceId:  document.getElementById('f-resourceId').value.trim(),
-        name:        { sv: document.getElementById('f-nameSv').value.trim(), en: document.getElementById('f-nameEn').value.trim() },
-        description: { sv: document.getElementById('f-descSv').value.trim(), en: document.getElementById('f-descEn').value.trim() },
-        slot_length: parseInt(document.getElementById('f-slotLen').value, 10),
-        isActive:    document.getElementById('f-isActive').checked,
-        earliest:    document.getElementById('f-earliest').value.trim(),
-        latest:      document.getElementById('f-latest').value.trim(),
+        ...(resourceIdEl ? { resourceId: resourceIdEl.value.trim() } : {}),
+        name,
+        slot_length:  parseInt(document.getElementById('f-slotLen').value, 10),
+        capacity:     parseInt(document.getElementById('f-capacity').value, 10) || 1,
+        isActive:     document.getElementById('f-isActive').checked,
+        earliest:     document.getElementById('f-earliest').value.trim(),
+        latest:       document.getElementById('f-latest').value.trim(),
+        bookableDays: [...document.querySelectorAll('.f-bookableDay:checked')].map(cb => parseInt(cb.value, 10)),
+        blockedSlots,
     };
 }
+
+window.addBlockedSlotRow = () => {
+    const placeholder = (typeof t === 'function') ? t('admin_hint_blocked_slot_label') : 'e.g. Lunch';
+    const row = document.createElement('div');
+    row.className = 'blocked-slot-row';
+    row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:4px';
+    row.innerHTML = `
+        <input class="f-bs-start" type="time" style="width:100px">
+        <span>–</span>
+        <input class="f-bs-end" type="time" style="width:100px">
+        <input class="f-bs-label" type="text" placeholder="${placeholder}" style="flex:1">
+        <button type="button" onclick="this.closest('.blocked-slot-row').remove()" style="color:red;font-weight:bold;border:none;background:none;cursor:pointer">✕</button>
+    `;
+    document.getElementById('f-blockedSlots').appendChild(row);
+};
 
 document.getElementById('btnAddResource').addEventListener('click', () => {
     openModal(t('admin_modal_add_resource'), resourceForm(), async () => {
@@ -388,7 +490,7 @@ window.editUser = async (id) => {
         if (!u) return;
         openModal(t('admin_modal_edit_user'), userForm(u), async () => {
             try {
-                await axios.put(`/admin/users/${id}`, collectUser());
+                await axios.put(`/admin/users/${id}`, groupBody(collectUser()));
                 loadUsers();
                 return true;
             } catch (e) { alert(apiError(e)); return false; }
@@ -408,7 +510,7 @@ window.deleteUser = async (id) => {
 
 async function loadBookings() {
     const tbody = document.getElementById('bookingsBody');
-    tbody.innerHTML = `<tr><td colspan="6">${t('admin_loading')}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7">${t('admin_loading')}</td></tr>`;
     try {
         const from = document.getElementById('bookingsFrom').value;
         const to   = document.getElementById('bookingsTo').value;
@@ -422,17 +524,19 @@ async function loadBookings() {
             const d = new Date(e.date);
             const dateStr = d.toLocaleDateString();
             const name = localize(e.resourceName) || e.resourceId;
+            const msg = e.message ? `<span title="${e.message.replace(/"/g,'&quot;')}" style="cursor:help;border-bottom:1px dotted #999">${e.message.length > 40 ? e.message.slice(0,40)+'…' : e.message}</span>` : '';
             return `<tr>
                 <td>${dateStr}</td>
                 <td>${e.time}</td>
                 <td>${name}</td>
                 <td>${e.userEmail}</td>
+                <td>${msg}</td>
                 <td><span class="badge badge-${e.status}">${e.status}</span></td>
                 <td class="actions">
                     <button class="btn btn-sm btn-danger" onclick="deleteBooking('${e._id}')">${t('admin_btn_delete')}</button>
                 </td>
             </tr>`;
-        }).join('') || `<tr><td colspan="6">${t('admin_no_bookings')}</td></tr>`;
+        }).join('') || `<tr><td colspan="7">${t('admin_no_bookings')}</td></tr>`;
     } catch (e) {
         tbody.innerHTML = `<tr><td colspan="6" style="color:red">${apiError(e)}</td></tr>`;
     }
@@ -487,7 +591,10 @@ document.getElementById('btnAddGroup').addEventListener('click', () => {
         try {
             const name   = document.getElementById('f-groupName').value.trim();
             const pub    = document.getElementById('f-groupPublic').checked;
-            await axios.post('/admin/groups', { name, public: pub });
+            const browserLang = (navigator.language || '').split('-')[0].toLowerCase();
+            const defaultLangs = ['en'];
+            if (browserLang !== 'en' && ALL_LANGS.some(l => l.code === browserLang)) defaultLangs.push(browserLang);
+            await axios.post('/admin/groups', { name, public: pub, languages: defaultLangs });
             loadGroups();
             return true;
         } catch (e) { alert(apiError(e)); return false; }
@@ -512,11 +619,128 @@ window.deleteGroup = async (name) => {
     } catch (e) { alert(apiError(e)); }
 };
 
+// ── Blocked Periods ──────────────────────────────────────────────────────────
+
+let groupResources = [];
+
+async function loadBlockedPeriods() {
+    try {
+        const [bpRes, resRes] = await Promise.all([
+            axios.get(`/admin/blocked-periods${groupQuery()}`),
+            axios.get(`/admin/resources${groupQuery()}`)
+        ]);
+        groupResources = resRes.data;
+        const tbody = document.getElementById('blockedBody');
+        tbody.innerHTML = bpRes.data.map(bp => {
+            const res = bp.resourceId ? groupResources.find(r => r.resourceId === bp.resourceId) : null;
+            const resLabel = res ? localize(res.name) : (bp.resourceId || t('admin_blocked_all_resources'));
+            const start = bp.startDate.slice(0, 10);
+            const end   = bp.endDate.slice(0, 10);
+            const period = start === end ? start : `${start} – ${end}`;
+            const time   = bp.startTime ? `${bp.startTime} – ${bp.endTime}` : t('admin_blocked_full_day');
+            return `<tr>
+                <td>${resLabel}</td>
+                <td>${period}</td>
+                <td>${time}</td>
+                <td>${bp.reason || '–'}</td>
+                <td class="actions">
+                    <button class="btn btn-sm btn-danger" onclick="deleteBlockedPeriod('${bp._id}')">${t('admin_btn_delete')}</button>
+                </td>
+            </tr>`;
+        }).join('') || `<tr><td colspan="5">${t('admin_no_blocks')}</td></tr>`;
+    } catch (e) {
+        document.getElementById('blockedBody').innerHTML = `<tr><td colspan="5" style="color:red">${apiError(e)}</td></tr>`;
+    }
+}
+
+function blockedPeriodForm() {
+    const today = new Date().toISOString().slice(0, 10);
+    const resOpts = [`<option value="">${t('admin_blocked_all_resources')}</option>`]
+        .concat(groupResources.map(r => `<option value="${r.resourceId}">${localize(r.name)}</option>`))
+        .join('');
+    return `
+        <div class="field">
+            <label>${t('admin_th_resource')}</label>
+            <select id="f-bp-resource">${resOpts}</select>
+        </div>
+        <div class="field-row">
+            <div class="field"><label>${t('admin_field_start_date')}</label><input type="date" id="f-bp-start" value="${today}"></div>
+            <div class="field"><label>${t('admin_field_end_date')}</label><input type="date" id="f-bp-end" value="${today}"></div>
+        </div>
+        <div class="field-row">
+            <div class="field"><label>${t('admin_field_start_time')} <small style="color:#888">(${t('admin_optional')})</small></label><input type="time" id="f-bp-startTime"></div>
+            <div class="field"><label>${t('admin_field_end_time')} <small style="color:#888">(${t('admin_optional')})</small></label><input type="time" id="f-bp-endTime"></div>
+        </div>
+        <div class="field"><label>${t('admin_field_reason')} <small style="color:#888">(${t('admin_optional')})</small></label><input id="f-bp-reason" placeholder="${t('admin_blocked_reason_placeholder')}"></div>`;
+}
+
+document.getElementById('btnAddBlock').addEventListener('click', () => {
+    openModal(t('admin_blocked_btn_add'), blockedPeriodForm(), async () => {
+        try {
+            const startDate  = document.getElementById('f-bp-start').value;
+            const endDate    = document.getElementById('f-bp-end').value || startDate;
+            const startTime  = document.getElementById('f-bp-startTime').value;
+            const endTime    = document.getElementById('f-bp-endTime').value;
+            if (!startDate) { alert(t('admin_blocked_date_required')); return false; }
+            if ((startTime && !endTime) || (!startTime && endTime)) {
+                alert(t('admin_blocked_time_both')); return false;
+            }
+            await axios.post('/admin/blocked-periods', groupBody({
+                resourceId: document.getElementById('f-bp-resource').value || null,
+                startDate,
+                endDate,
+                startTime: startTime || null,
+                endTime:   endTime   || null,
+                reason:    document.getElementById('f-bp-reason').value.trim()
+            }));
+            loadBlockedPeriods();
+            return true;
+        } catch (e) { alert(apiError(e)); return false; }
+    });
+});
+
+window.deleteBlockedPeriod = async (id) => {
+    if (!confirm(t('admin_confirm_delete_block'))) return;
+    try {
+        await axios.delete(`/admin/blocked-periods/${id}`);
+        loadBlockedPeriods();
+    } catch (e) { alert(apiError(e)); }
+};
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+
+const ALL_LANGS = [
+    { code: 'sv', label: '🇸🇪 Svenska' },
+    { code: 'en', label: '🇬🇧 English' },
+    { code: 'fr', label: '🇫🇷 Français' },
+    { code: 'es', label: '🇪🇸 Español' },
+    { code: 'zh', label: '🇨🇳 中文' },
+];
+
+async function loadSettings() {
+    try {
+        const res = await axios.get(`/groups/${activeGroup}`);
+        const langs = res.data.languages || ALL_LANGS.map(l => l.code);
+        const container = document.getElementById('langCheckboxes');
+        container.innerHTML = ALL_LANGS.map(l =>
+            `<label style="display:flex;align-items:center;gap:6px">
+                <input type="checkbox" class="s-lang" value="${l.code}" ${langs.includes(l.code) ? 'checked' : ''}>
+                ${l.label}
+            </label>`
+        ).join('');
+    } catch (e) { console.error('Failed to load settings:', e); }
+}
+
+document.getElementById('btnSaveSettings').addEventListener('click', async () => {
+    const languages = [...document.querySelectorAll('.s-lang:checked')].map(cb => cb.value);
+    if (!languages.length) { alert(t('alert_select_one_language')); return; }
+    try {
+        await axios.patch(`/admin/groups/${activeGroup}`, { public: currentGroupInfo?.public ?? false, languages });
+        alert(t('alert_settings_saved'));
+    } catch (e) { alert(apiError(e)); }
+});
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
-if (!currentGroup) {
-    document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif"><h2>No group specified</h2><p>Access via <code>/admin/&lt;groupname&gt;</code>.</p></div>';
-} else {
-    initI18n();
-    bootApp();
-}
+initI18n();
+bootApp();

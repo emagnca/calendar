@@ -51,6 +51,40 @@ with open(path, 'w') as f:
 print('  index.html patched.')
 PYEOF
 
+echo "→ Patching www/admin/index.html..."
+python3 - <<'PYEOF'
+import os, re
+
+path    = os.path.join(os.environ.get('WWW_DIR', 'www'), 'admin/index.html')
+api_url = os.environ.get('API_URL', '')
+
+if not os.path.exists(path):
+    print('  admin/index.html not found, skipping.')
+else:
+    with open(path) as f:
+        html = f.read()
+
+    # 1. Remove <base href="/"> so Capacitor resolves paths relative to the file
+    html = re.sub(r'\s*<base href="/">', '', html)
+
+    # 2. Fix paths that were relative to root — now relative to admin/
+    html = html.replace('href="admin/admin.css"',  'href="./admin.css"')
+    html = html.replace('src="admin/admin.js"',    'src="./admin.js"')
+    for lang in ['sv', 'en', 'fr', 'es', 'zh']:
+        html = html.replace(f'src="lang/{lang}.js"', f'src="../lang/{lang}.js"')
+    html = html.replace('src="i18n.js"', 'src="../i18n.js"')
+
+    # 3. Patch API base URL to absolute Lambda URL
+    html = html.replace(
+        "axios.defaults.baseURL = '/api';",
+        f"axios.defaults.baseURL = '{api_url}/api';"
+    )
+
+    with open(path, 'w') as f:
+        f.write(html)
+    print('  admin/index.html patched.')
+PYEOF
+
 echo "→ Patching www/register/index.html..."
 python3 - <<'PYEOF'
 import os

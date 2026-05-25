@@ -4,6 +4,7 @@ const fr = {
 
     // Nav / header
     logout: 'Se déconnecter',
+    link_admin_view: 'Admin',
 
     // Calendar weekdays
     day_sun: 'Dim', day_mon: 'Lun', day_tue: 'Mar', day_wed: 'Mer',
@@ -159,6 +160,9 @@ const fr = {
     admin_modal_edit_user: 'Modifier l\'utilisateur',
     admin_modal_add_group: 'Ajouter un groupe',
     admin_modal_edit_group: 'Modifier le groupe',
+    admin_field_blocked_slots: 'Plages horaires bloquées',
+    admin_hint_blocked_slot_label: 'Étiquette, ex. Déjeuner',
+    admin_btn_add_blocked_slot: '+ Ajouter une plage bloquée',
     admin_confirm_delete_resource: 'Supprimer cette ressource ? Les réservations existantes seront conservées.',
     admin_confirm_delete_user: 'Supprimer cet utilisateur ? Cette action est irréversible.',
     admin_confirm_delete_group: 'Supprimer le groupe « {0} » ? Ses ressources et utilisateurs ne seront PAS supprimés.',

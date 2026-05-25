@@ -47,17 +47,20 @@
     <header class="topbar">
         <span class="topbar-title">Admin — <span id="groupLabel"></span></span>
         <div class="topbar-right">
-            <select id="groupSwitcher" class="lang-picker" style="display:none"></select>
-            <select id="langPicker" class="lang-picker">
-                <option value="sv">🇸🇪 Svenska</option>
-                <option value="en">🇬🇧 English</option>
-                <option value="fr">🇫🇷 Français</option>
-                <option value="es">🇪🇸 Español</option>
-                <option value="zh">🇨🇳 中文</option>
-            </select>
-            <span id="currentUserName"></span>
-            <a id="calendarLink" href="#" class="btn btn-sm btn-secondary" style="color:#333;text-decoration:none" data-i18n="admin_link_view_calendar">View Calendar</a>
-            <button class="btn btn-sm btn-danger" id="btnLogout" data-i18n="logout">Logout</button>
+            <button class="topbar-hamburger" id="adminHamburgerBtn" aria-label="Menu">&#9776;</button>
+            <div class="topbar-menu" id="adminHeaderMenu">
+                <select id="groupSwitcher" class="lang-picker" style="display:none"></select>
+                <select id="langPicker" class="lang-picker">
+                    <option value="sv">🇸🇪 Svenska</option>
+                    <option value="en">🇬🇧 English</option>
+                    <option value="fr">🇫🇷 Français</option>
+                    <option value="es">🇪🇸 Español</option>
+                    <option value="zh">🇨🇳 中文</option>
+                </select>
+                <span id="currentUserName"></span>
+                <a id="calendarLink" href="#" class="btn btn-sm btn-secondary" style="color:#333;text-decoration:none" data-i18n="admin_link_view_calendar">View Calendar</a>
+                <button class="btn btn-sm btn-danger" id="btnLogout" data-i18n="logout">Logout</button>
+            </div>
         </div>
     </header>
 
@@ -220,5 +223,15 @@
 </div>
 
 <script src="admin/admin.js"></script>
+<script>
+(function(){
+    var btn=document.getElementById('adminHamburgerBtn');
+    var menu=document.getElementById('adminHeaderMenu');
+    if(!btn||!menu)return;
+    btn.addEventListener('click',function(e){e.stopPropagation();menu.classList.toggle('open');});
+    document.addEventListener('click',function(){menu.classList.remove('open');});
+    menu.addEventListener('click',function(e){e.stopPropagation();});
+})();
+</script>
 </body>
 </html>

@@ -12,9 +12,7 @@
                `T${padZ(d.getHours())}${padZ(d.getMinutes())}00`;
     }
 
-    function makeICS(startDate, title) {
-        const end = new Date(startDate);
-        end.setHours(end.getHours() + 1);
+    function makeICS(startDate, endDate, title) {
         const uid = `eb-${Date.now()}@easybooking`;
         return [
             'BEGIN:VCALENDAR',
@@ -23,7 +21,7 @@
             'BEGIN:VEVENT',
             `UID:${uid}`,
             `DTSTART:${toICSDate(startDate)}`,
-            `DTEND:${toICSDate(end)}`,
+            `DTEND:${toICSDate(endDate)}`,
             `SUMMARY:${title}`,
             'DESCRIPTION:Booked via EasyBooking',
             'END:VEVENT',
@@ -31,8 +29,7 @@
         ].join('\r\n');
     }
 
-    function getResourceName(resourceId) {
-        // Look up displayed name from any visible resource <select>
+    function fallbackName(resourceId) {
         for (const id of ['dayViewResourceSelect', 'resourceSelect']) {
             const sel = document.getElementById(id);
             if (sel) {
@@ -43,8 +40,14 @@
         return resourceId;
     }
 
-    window.offerCalendarAdd = async function (date, time, resourceId) {
-        const name  = getResourceName(resourceId);
+    // date      — Date object for the booked day
+    // time      — "HH:MM" string
+    // resourceId — resource identifier
+    // duration  — slot length in minutes (passed by build.sh patch)
+    // name      — localized resource name (passed by build.sh patch)
+    window.offerCalendarAdd = async function (date, time, resourceId, duration, name) {
+        duration = duration || 60;
+        name     = name || fallbackName(resourceId);
         const title = `${name} – EasyBooking`;
 
         if (!window.confirm(`Add "${title}" (${time}) to your calendar?`)) return;
@@ -54,7 +57,8 @@
         const start  = new Date(date);
         start.setHours(h, m, 0, 0);
 
-        const ics  = makeICS(start, title);
+        const end  = new Date(start.getTime() + duration * 60000);
+        const ics  = makeICS(start, end, title);
         const file = new File([ics], 'booking.ics', { type: 'text/calendar' });
 
         // Use Web Share API (routes through native share sheet → "Add to Calendar")

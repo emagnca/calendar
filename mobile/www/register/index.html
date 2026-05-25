@@ -70,11 +70,16 @@
         </div>
         <button class="btn" id="btnSubmit">Registrera</button>
         <p class="error" id="step1Error"></p>
+        <div id="resumeBlock" style="display:none;margin-top:16px;padding:14px;background:#fff3e0;border:1px solid #ffcc80;border-radius:6px;font-size:14px">
+            <p style="margin-bottom:10px">Det finns redan en väntande registrering för den här gruppen. Vill du återuppta den och få nya koder skickade?</p>
+            <button class="btn" id="btnResume" style="background:#e65100">Skicka nya koder och fortsätt</button>
+        </div>
     </div>
 
     <!-- Step 2: Verify -->
     <div id="step2" class="step">
         <p class="info">Vi har skickat en 6-siffrig kod till <strong id="emailDisplay"></strong> och en till ditt telefonnummer. Ange båda koderna nedan.</p>
+        <p style="font-size:13px;color:#888;margin-bottom:14px">Om du stängt fönstret kan du komma tillbaka hit via <a href="/register">registreringslänken</a> – koden sparas automatiskt tills den bekräftas.</p>
 
         <div class="field">
             <label>📧 Kod från e-post</label>
@@ -89,6 +94,9 @@
 
         <button class="btn" id="btnConfirm">Bekräfta och registrera</button>
         <p class="error" id="step2Error"></p>
+        <p style="text-align:center;margin-top:16px;font-size:13px">
+            <a href="#" id="btnStartOver" style="color:#999">Börja om / annan e-post</a>
+        </p>
     </div>
 
     <!-- Step 3: Complete -->
@@ -104,11 +112,40 @@
 </div>
 
 <script>
+    const STORAGE_KEY = 'pendingGroupReg';
     let regToken = null;
 
     function showStep(n) {
         document.querySelectorAll('.step').forEach((s, i) => s.classList.toggle('active', i + 1 === n));
     }
+
+    function savePending(token, email) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, email }));
+    }
+
+    function clearPending() {
+        localStorage.removeItem(STORAGE_KEY);
+    }
+
+    function restoreStep2(token, email) {
+        regToken = token;
+        document.getElementById('emailDisplay').textContent = email;
+        showStep(2);
+        document.getElementById('emailCode').focus();
+    }
+
+    // On load: resume pending registration if one exists
+    const pending = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (pending && pending.token) {
+        restoreStep2(pending.token, pending.email);
+    }
+
+    document.getElementById('btnStartOver').addEventListener('click', (e) => {
+        e.preventDefault();
+        clearPending();
+        regToken = null;
+        showStep(1);
+    });
 
     document.getElementById('btnSubmit').addEventListener('click', async () => {
         const btn = document.getElementById('btnSubmit');
@@ -118,21 +155,40 @@
         btn.textContent = 'Skickar…';
         try {
             const visibility = document.querySelector('input[name="groupVisibility"]:checked').value;
+            const email = document.getElementById('adminEmail').value.trim();
             const res = await axios.post('https://mr3xmgyqnxzrszocyvutnjknty0eodkp.lambda-url.eu-north-1.on.aws/group-registration', {
                 groupName:  document.getElementById('groupName').value.trim(),
                 adminName:  document.getElementById('adminName').value.trim(),
-                adminEmail: document.getElementById('adminEmail').value.trim(),
+                adminEmail: email,
                 adminPhone: document.getElementById('adminPhone').value.trim(),
                 isPublic:   visibility === 'public'
             });
-            regToken = res.data.token;
-            document.getElementById('emailDisplay').textContent = document.getElementById('adminEmail').value.trim();
-            showStep(2);
-            document.getElementById('emailCode').focus();
+            savePending(res.data.token, email);
+            restoreStep2(res.data.token, email);
         } catch (e) {
-            errEl.textContent = e.response?.data?.error || 'Något gick fel. Försök igen.';
+            const msg = e.response?.data?.error || 'Något gick fel. Försök igen.';
+            const isPending = msg.toLowerCase().includes('pending');
+            errEl.textContent = isPending ? '' : msg;
+            document.getElementById('resumeBlock').style.display = isPending ? '' : 'none';
             btn.disabled = false;
             btn.textContent = 'Registrera';
+        }
+    });
+
+    document.getElementById('btnResume').addEventListener('click', async () => {
+        const btn = document.getElementById('btnResume');
+        btn.disabled = true;
+        btn.textContent = 'Skickar…';
+        try {
+            const email = document.getElementById('adminEmail').value.trim();
+            const res = await axios.post('https://mr3xmgyqnxzrszocyvutnjknty0eodkp.lambda-url.eu-north-1.on.aws/group-registration/resume', { adminEmail: email });
+            savePending(res.data.token, email);
+            document.getElementById('resumeBlock').style.display = 'none';
+            restoreStep2(res.data.token, email);
+        } catch (e) {
+            alert(e.response?.data?.error || 'Kunde inte återuppta registreringen.');
+            btn.disabled = false;
+            btn.textContent = 'Skicka nya koder och fortsätt';
         }
     });
 
@@ -150,7 +206,8 @@
                 emailCode: document.getElementById('emailCode').value.trim(),
                 smsCode:   document.getElementById('smsCode').value.trim()
             });
-            finalize(res.data.groupName);
+            clearPending();
+            finalize(res.data.groupName, res.data.adminToken);
         } catch (e) {
             const err = e.response?.data?.error;
             if (err && typeof err === 'object') {
@@ -164,7 +221,12 @@
         }
     });
 
-    function finalize(groupName) {
+    function finalize(groupName, adminToken) {
+        if (adminToken) {
+            localStorage.setItem('adminToken', adminToken);
+            window.location.href = `/admin/${groupName}`;
+            return;
+        }
         document.getElementById('groupNameDisplay').textContent = groupName;
         const adminUrl = `${window.location.origin}/admin/${groupName}`;
         const link = document.getElementById('adminLink');

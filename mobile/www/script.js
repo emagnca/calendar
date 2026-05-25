@@ -3,6 +3,7 @@ let selectedDate = null;
 let selectedResourceId = null;
 let resources = []; // Store resources from API
 let bookings = new Map(); // Store bookings: date -> [{resource, time}]
+let currentGroupInfo = null; // Populated after init()
 
 // Read group from URL path: /<groupname>
 const currentGroup = window._mobileGroup || window.location.pathname.split('/').filter(Boolean)[0] || null;
@@ -82,7 +83,6 @@ function renderResourceList() {
     container.innerHTML = resources.map(r => `
         <div class="resource-card" data-resource-id="${r.resourceId}">
             <div class="resource-card-name">${localize(r.name)}</div>
-            ${r.description ? `<div class="resource-card-desc">${localize(r.description)}</div>` : ''}
             <div class="resource-card-meta">${r.earliest} – ${r.latest} &nbsp;|&nbsp; ${r.slot_length} min/slot</div>
             <div class="resource-card-hint">${t('card_click_hint')}</div>
         </div>
@@ -223,7 +223,7 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
     try {
         // Get availability from server
         const dateStr = localDateStr(selectedDate);
-        const { resource: resourceDetails, availability } = await getResourceAvailability(resourceId, dateStr);
+        const { resource: resourceDetails, availability, notBookableDay } = await getResourceAvailability(resourceId, dateStr);
 
         // Determine which slots are in the past (only relevant when selected date is today)
         const now = new Date();
@@ -239,7 +239,6 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
         const resourceInfo = `
             <div class="resource-details">
                 <p><strong>${localize(resourceDetails.name)}</strong></p>
-                <p>${localize(resourceDetails.description)}</p>
                 <p>${t('resource_duration', resourceDetails.bookingConfig.duration)}</p>
                 <p>${t('resource_available', resourceDetails.bookingConfig.startTime, resourceDetails.bookingConfig.endTime)}</p>
             </div>
@@ -248,6 +247,10 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
 
         // Handle time slots display
         if (timeSlotsContainer) {
+            if (notBookableDay) {
+                timeSlotsContainer.innerHTML = `<p class="not-bookable-msg">${t('resource_not_bookable_day')}</p>`;
+                return;
+            }
             // Day view
             timeSlotsContainer.innerHTML = `
                 <h3>${t('available_times_title')}</h3>
@@ -255,18 +258,27 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
                     ${availability.map(slot => {
                         const past = isSlotPast(slot.time);
                         const cls = past ? 'past' : (slot.isAvailable ? 'available' : 'booked');
-                        const action = past
-                            ? ''
-                            : slot.isAvailable
-                                ? `<button onclick="handleInlineBooking('${resourceId}', '${slot.time}')">${t('btn_book_slot')}</button>`
-                                : slot.booking
-                                    ? `<span class="booking-info">
-                                        <span class="status">${slot.booking.status}</span>
-                                        ${canCancelBooking(slot.booking) && slot.booking.status === 'confirmed'
-                                            ? `<button onclick="cancelBooking('${slot.booking.id}', this)">${t('btn_cancel_booking')}</button>`
-                                            : ''}
-                                       </span>`
-                                    : `<span class="booked-label">${t('label_booked')}</span>`;
+                        const slotBookings = slot.bookings || [];
+                        const myBooking = slotBookings.find(b => b.status === 'confirmed' && b.userId === currentUser?.id);
+                        const cancelButtons = myBooking
+                            ? `<span class="booking-info"><button type="button" class="cancel-booking-btn" onclick="cancelBooking('${myBooking.id}', this)">${t('btn_cancel_booking')}</button></span>`
+                            : '';
+                        let action = '';
+                        if (!past) {
+                            if (slot.isAvailable) {
+                                const spotsLabel = slot.capacity > 1
+                                    ? ` <small>(${t('label_spots_left', slot.spotsLeft)})</small>` : '';
+                                action = `<button onclick="handleInlineBooking('${resourceId}', '${slot.time}')">${t('btn_book_slot')}</button>${spotsLabel}`;
+                            } else if (!cancelButtons) {
+                                const blockedMsg = slot.isBlocked && slot.blockReason
+                                    ? slot.blockReason
+                                    : slot.isBlocked
+                                        ? t('label_blocked')
+                                        : t('label_fully_booked');
+                                action = `<span class="booked-label">${blockedMsg}</span>`;
+                            }
+                            action += cancelButtons;
+                        }
                         return `
                         <div class="time-slot ${cls}">
                             <div class="time-label">${slot.time}</div>
@@ -279,17 +291,19 @@ async function handleResourceSelection(resourceId, container, timeSlotsContainer
             // Modal view — exclude past slots
             const timeSlotSelect = document.getElementById('timeSlot');
             const nextButton = document.getElementById('nextStep');
-            
+
             if (timeSlotSelect) {
-                const availableSlots = availability.filter(slot => slot.isAvailable && !isSlotPast(slot.time));
-                timeSlotSelect.innerHTML = availableSlots.length > 0 ?
-                    availableSlots.map(slot => 
-                        `<option value="${slot.time}">${slot.time}</option>`
-                    ).join('') :
-                    `<option value="">${t('no_slots_today')}</option>`;
-                
-                if (nextButton) {
-                    nextButton.disabled = availableSlots.length === 0;
+                if (notBookableDay) {
+                    timeSlotSelect.innerHTML = `<option value="">${t('resource_not_bookable_day')}</option>`;
+                    if (nextButton) nextButton.disabled = true;
+                } else {
+                    const availableSlots = availability.filter(slot => slot.isAvailable && !isSlotPast(slot.time));
+                    timeSlotSelect.innerHTML = availableSlots.length > 0 ?
+                        availableSlots.map(slot =>
+                            `<option value="${slot.time}">${slot.time}</option>`
+                        ).join('') :
+                        `<option value="">${t('no_slots_today')}</option>`;
+                    if (nextButton) nextButton.disabled = availableSlots.length === 0;
                 }
             }
         }
@@ -337,6 +351,8 @@ function initCalendar() {
     document.getElementById('nextStep')?.addEventListener('click', () => {
         document.getElementById('step1').style.display = 'none';
         document.getElementById('step2').style.display = 'block';
+        const bookerSection = document.getElementById('bookerInfoSection');
+        if (bookerSection) bookerSection.style.display = 'none';
     });
 
     document.getElementById('prevStep')?.addEventListener('click', () => {
@@ -773,7 +789,6 @@ async function showInlineBookingForm(container, time) {
             // Show resource information
             resourceInfoDiv.innerHTML = `
                 <p><strong>${localize(resource.name)}</strong></p>
-                <p>${localize(resource.description)}</p>
                 <p>${t('booking_duration', resource.bookingConfig.duration)}</p>
                 <p>${t('available_hours', resource.bookingConfig.startTime, resource.bookingConfig.endTime)}</p>
             `;
@@ -818,15 +833,211 @@ async function showInlineBookingForm(container, time) {
     container.appendChild(form);
 }
 
+function getPublicBookerInfo() {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
+
+        const box = document.createElement('div');
+        box.style.cssText = 'background:#fff;border-radius:8px;padding:24px;width:90%;max-width:360px;box-shadow:0 4px 20px rgba(0,0,0,.3);';
+        box.innerHTML = `
+            <h3 style="margin:0 0 16px">${t('booker_info_title')}</h3>
+            <div style="margin-bottom:12px">
+                <label style="display:block;margin-bottom:4px;font-size:.9em">${t('booker_name_label')}</label>
+                <input id="_pbName" type="text" autocomplete="name" placeholder="${t('booker_name_placeholder')}"
+                    style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:1em">
+            </div>
+            <div style="margin-bottom:20px">
+                <label style="display:block;margin-bottom:4px;font-size:.9em">${t('booker_email_label')}</label>
+                <input id="_pbEmail" type="email" autocomplete="email" placeholder="${t('booker_email_placeholder')}"
+                    style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:1em">
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+                <button id="_pbCancel" style="padding:8px 16px;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer">${t('btn_cancel')}</button>
+                <button id="_pbConfirm" style="padding:8px 16px;border:none;border-radius:4px;background:#007bff;color:#fff;cursor:pointer">${t('btn_book')}</button>
+            </div>`;
+
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+
+        const nameInput  = box.querySelector('#_pbName');
+        const emailInput = box.querySelector('#_pbEmail');
+
+        const close = (result) => { document.body.removeChild(overlay); resolve(result); };
+
+        box.querySelector('#_pbCancel').addEventListener('click', () => close(null));
+        box.querySelector('#_pbConfirm').addEventListener('click', () => {
+            const name  = nameInput.value.trim();
+            const email = emailInput.value.trim();
+            if (!name)  { nameInput.focus();  return; }
+            if (!email) { emailInput.focus(); return; }
+            close({ name, email });
+        });
+
+        nameInput.focus();
+    });
+}
+
+// ── Stripe Payment ────────────────────────────────────────────────────────────
+
+let stripeInstance = null;
+
+async function initStripe() {
+    if (stripeInstance) return stripeInstance;
+    if (typeof Stripe === 'undefined') throw new Error('Stripe.js not loaded');
+    const res = await axios.get('/payment/config', { baseURL: '' });
+    stripeInstance = Stripe(res.data.publishableKey);
+    return stripeInstance;
+}
+
+function formatAmount(amountMinor, currency) {
+    return (amountMinor / 100).toFixed(2) + ' ' + currency.toUpperCase();
+}
+
+async function showPaymentModal(resourceId, time, resourceObj) {
+    let stripe;
+    try {
+        stripe = await initStripe();
+    } catch (e) {
+        alert(t('payment_error_stripe_unavailable'));
+        return;
+    }
+
+    const amountStr = formatAmount(resourceObj.price, resourceObj.currency || 'sek');
+
+    const overlay = document.createElement('div');
+    overlay.className = 'payment-overlay';
+    overlay.innerHTML = `
+        <div class="payment-modal-box">
+            <h3>${t('payment_title')}</h3>
+            <p class="payment-amount-line">${t('payment_amount', amountStr)}</p>
+            <label class="payment-card-label">${t('payment_card_label')}</label>
+            <div id="stripe-card-element" class="stripe-card-element"></div>
+            <div id="stripe-card-error" class="stripe-card-error"></div>
+            <div class="form-group" style="margin:14px 0 4px">
+                <label style="font-size:0.9rem;color:#555">${t('booking_message_label')}</label>
+                <textarea id="paymentMessage" rows="3"
+                    style="width:100%;resize:vertical;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:0.9rem;box-sizing:border-box;margin-top:4px"
+                    placeholder="${t('booking_message_placeholder')}"></textarea>
+            </div>
+            <div class="payment-actions">
+                <button id="payBtn" class="btn-pay">${t('payment_btn_pay', amountStr)}</button>
+                <button id="cancelPayBtn" class="btn-pay-cancel">${t('btn_cancel')}</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const elements = stripe.elements();
+    const cardElement = elements.create('card', {
+        style: {
+            base: { fontSize: '16px', color: '#2c3e50', '::placeholder': { color: '#aab7c4' } },
+            invalid: { color: '#dc3545' }
+        }
+    });
+    cardElement.mount('#stripe-card-element');
+
+    const errorEl = () => document.getElementById('stripe-card-error');
+    cardElement.on('change', e => { errorEl().textContent = e.error ? e.error.message : ''; });
+
+    document.getElementById('cancelPayBtn').addEventListener('click', () => {
+        cardElement.destroy();
+        overlay.remove();
+    });
+
+    document.getElementById('payBtn').addEventListener('click', async () => {
+        const payBtn = document.getElementById('payBtn');
+        payBtn.disabled = true;
+        payBtn.textContent = t('payment_processing');
+        errorEl().textContent = '';
+
+        try {
+            const intentRes = await axios.post('/payment/create-intent', {
+                group:      currentGroup,
+                resourceId,
+                date:       localDateStr(selectedDate),
+                time,
+                bookerName: currentUser?.name || currentUser?.email || '',
+                message:    overlay.querySelector('#paymentMessage')?.value.trim() || undefined
+            }, { baseURL: '' });
+
+            const { error } = await stripe.confirmCardPayment(
+                intentRes.data.clientSecret,
+                { payment_method: { card: cardElement } }
+            );
+
+            if (error) {
+                errorEl().textContent = error.message;
+                payBtn.disabled = false;
+                payBtn.textContent = t('payment_btn_pay', amountStr);
+                return;
+            }
+
+            cardElement.destroy();
+            overlay.remove();
+            alert(t('payment_success'));
+
+            const sel = document.getElementById('dayViewResourceSelect');
+            if (sel && sel.value === resourceId) sel.dispatchEvent(new Event('change'));
+            await fetchBookingsForMonth(currentDate);
+            renderCalendar();
+        } catch (e) {
+            errorEl().textContent = e.response?.data?.error || t('payment_error_generic');
+            payBtn.disabled = false;
+            payBtn.textContent = t('payment_btn_pay', amountStr);
+        }
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+function promptBookingMessage() {
+    return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:10000';
+        overlay.innerHTML = `
+            <div style="background:#fff;border-radius:10px;padding:28px 24px;width:min(420px,90vw);box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+                <h4 style="margin:0 0 14px;font-size:1.05rem;color:#333">${t('booking_message_label')}</h4>
+                <textarea id="inlineBookingMsg" rows="4"
+                    style="width:100%;resize:vertical;padding:10px;border:1px solid #ccc;border-radius:6px;font-size:0.95rem;box-sizing:border-box"
+                    placeholder="${t('booking_message_placeholder')}"></textarea>
+                <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
+                    <button id="inlineMsgCancel" style="padding:9px 20px;border:1px solid #ccc;border-radius:6px;background:#fff;color:#333;cursor:pointer">${t('btn_cancel')}</button>
+                    <button id="inlineMsgConfirm" style="padding:9px 20px;background:#007bff;color:#fff;border:none;border-radius:6px;cursor:pointer">${t('btn_book')}</button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+        document.getElementById('inlineMsgConfirm').onclick = () => {
+            const msg = document.getElementById('inlineBookingMsg').value.trim();
+            overlay.remove();
+            resolve(msg);
+        };
+        document.getElementById('inlineMsgCancel').onclick = () => {
+            overlay.remove();
+            resolve(null);
+        };
+    });
+}
+
 async function handleInlineBooking(resource, time) {
     if (!selectedDate) return;
-    
+
+    const resourceObj = resources.find(r => r.resourceId === resource);
+    if (resourceObj && resourceObj.price > 0) {
+        await showPaymentModal(resource, time, resourceObj);
+        return;
+    }
+
+    const message = await promptBookingMessage();
+    if (message === null) return;
+
     try {
         // Create booking through API
         await axios.post('/events', {
             resourceId: resource,
             date: localDateStr(selectedDate),
-            time: time
+            time: time,
+            message: message || undefined
         }, { params: groupParam() });
 
         // Refresh bookings for this date
@@ -844,7 +1055,7 @@ async function handleInlineBooking(resource, time) {
         
         // Show confirmation
         alert(t('alert_booking_confirmed'));
-        if (typeof window.offerCalendarAdd === 'function') { window.offerCalendarAdd(selectedDate, time, resource); }
+        if (typeof window.offerCalendarAdd === 'function') { const _r = resources.find(r => r.resourceId === resource); window.offerCalendarAdd(selectedDate, time, resource, _r ? (_r.slot_length || 60) : 60, _r && typeof localize === 'function' ? localize(_r.name) : resource); }
     } catch (error) {
         if (error.response && error.response.status === 409) {
             alert(t('alert_slot_already_booked'));
@@ -898,22 +1109,32 @@ async function handleBooking(event) {
 
     const resource = document.getElementById('resourceSelect').value;
     const time = document.getElementById('timeSlot').value;
-    
+
+    const resourceObj = resources.find(r => r.resourceId === resource);
+    if (resourceObj && resourceObj.price > 0) {
+        bookingModal.style.display = 'none';
+        await showPaymentModal(resource, time, resourceObj);
+        return;
+    }
+
     try {
         // Create booking through API
         await axios.post('/events', {
             resourceId: resource,
             date: localDateStr(selectedDate),
-            time: time
+            time: time,
+            message: document.getElementById('bookingMessage')?.value.trim() || undefined
         }, { params: groupParam() });
 
         // Close modal and reset form
         bookingModal.style.display = 'none';
         bookingForm.reset();
+        const msgEl = document.getElementById('bookingMessage');
+        if (msgEl) msgEl.value = '';
         
         // Show confirmation
         alert(t('alert_booking_confirmed'));
-        if (typeof window.offerCalendarAdd === 'function') { window.offerCalendarAdd(selectedDate, time, resource); }
+        if (typeof window.offerCalendarAdd === 'function') { const _r = resources.find(r => r.resourceId === resource); window.offerCalendarAdd(selectedDate, time, resource, _r ? (_r.slot_length || 60) : 60, _r && typeof localize === 'function' ? localize(_r.name) : resource); }
         
         // Refresh bookings for this date
         await fetchBookingsForMonth(currentDate);
@@ -977,6 +1198,97 @@ styles.textContent = `
     .logout-button:hover {
         background-color: #c82333;
     }
+
+    .payment-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .payment-modal-box {
+        background: #fff;
+        border-radius: 10px;
+        padding: 28px;
+        max-width: 420px;
+        width: 90%;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    }
+
+    .payment-modal-box h3 {
+        margin: 0 0 6px;
+        font-size: 1.2rem;
+        color: #2c3e50;
+    }
+
+    .payment-amount-line {
+        color: #555;
+        margin: 0 0 20px;
+        font-size: 1.05rem;
+    }
+
+    .payment-card-label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: #444;
+        margin-bottom: 8px;
+    }
+
+    .stripe-card-element {
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        padding: 10px 12px;
+        background: #f9f9f9;
+        transition: border-color 0.2s;
+    }
+
+    .stripe-card-element.StripeElement--focus { border-color: #4CAF50; }
+    .stripe-card-element.StripeElement--invalid { border-color: #dc3545; }
+
+    .stripe-card-error {
+        color: #dc3545;
+        font-size: 13px;
+        margin-top: 6px;
+        min-height: 18px;
+    }
+
+    .payment-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+    }
+
+    .btn-pay {
+        flex: 1;
+        padding: 10px;
+        background: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .btn-pay:hover:not(:disabled) { background: #43a047; }
+    .btn-pay:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .btn-pay-cancel {
+        padding: 10px 18px;
+        background: #eee;
+        color: #333;
+        border: none;
+        border-radius: 5px;
+        font-size: 15px;
+        cursor: pointer;
+    }
+
+    .btn-pay-cancel:hover { background: #ddd; }
 
     .time-slot.past {
         background-color: #f5f5f5;
@@ -1299,17 +1611,112 @@ document.head.appendChild(styles);
 
 // Authentication state
 let currentUser = null;
-let authToken = localStorage.getItem('authToken');
+
+// Pick the best available token: prefer private-user tokens (have _id) over public ones
+function pickToken() {
+    const tryAdmin = localStorage.getItem('adminToken');
+    const tryAuth  = localStorage.getItem('authToken');
+    const isValidPrivate = t => {
+        if (!t) return false;
+        try { const p = JSON.parse(atob(t.split('.')[1])); return !!(p._id && p.exp * 1000 > Date.now()); }
+        catch { return false; }
+    };
+    if (isValidPrivate(tryAdmin)) return tryAdmin;
+    if (isValidPrivate(tryAuth))  return tryAuth;
+    return tryAdmin || tryAuth || null;
+}
+let authToken = pickToken();
 
 // Try to restore user info from localStorage
 try {
     const userJson = localStorage.getItem('currentUser');
     if (userJson) {
         currentUser = JSON.parse(userJson);
+    } else if (authToken) {
+        const payload = JSON.parse(atob(authToken.split('.')[1]));
+        if (payload.exp * 1000 > Date.now()) {
+            currentUser = payload._id
+                ? { id: payload._id, email: payload.email, role: payload.role, group: payload.group }
+                : { email: payload.email, name: payload.name, role: payload.role || 'user', group: payload.group };
+        }
     }
 } catch (error) {
     console.error('Error restoring user info:', error);
     localStorage.removeItem('currentUser');
+}
+
+// Show public-group login form (self-registration: any name + email + code)
+function showPublicLoginForm() {
+    const existing = document.getElementById('loginModal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'loginModal';
+    modal.className = 'modal';
+    modal.style.cssText = 'display:block;z-index:1000;';
+
+    const content = document.createElement('div');
+    content.className = 'modal-content';
+    content.innerHTML = `
+        <h2>${t('public_login_title')}</h2>
+        <p style="color:#666;margin-bottom:16px;font-size:.95em">${t('public_login_desc')}</p>
+        <form id="publicLoginForm">
+            <div class="form-group">
+                <label for="pubLoginName">${t('booker_name_label')}</label>
+                <input type="text" id="pubLoginName" autocomplete="name" required>
+            </div>
+            <div class="form-group">
+                <label for="pubLoginEmail">${t('label_email')}</label>
+                <input type="email" id="pubLoginEmail" autocomplete="email" required>
+            </div>
+            <button type="button" id="pubSendCodeBtn">${t('btn_send_code')}</button>
+            <div class="form-group" style="margin-top:12px;">
+                <label for="pubLoginCode">${t('label_code')}</label>
+                <input type="text" id="pubLoginCode" maxlength="6" placeholder="${t('placeholder_code')}">
+            </div>
+            <button type="submit">${t('btn_login')}</button>
+        </form>
+    `;
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+
+    document.getElementById('pubSendCodeBtn').addEventListener('click', async () => {
+        const name  = document.getElementById('pubLoginName').value.trim();
+        const email = document.getElementById('pubLoginEmail').value.trim();
+        if (!name)  { alert(t('alert_public_name_required')); return; }
+        if (!email) { alert(t('alert_enter_email'));           return; }
+        const btn = document.getElementById('pubSendCodeBtn');
+        btn.disabled = true;
+        btn.textContent = t('btn_sending');
+        try {
+            await axios.post('/public-auth/send-code', { name, email, group: currentGroup });
+            btn.textContent = t('btn_resend_code');
+            btn.disabled = false;
+        } catch (err) {
+            alert(err.response?.data?.error || t('alert_send_code_failed'));
+            btn.textContent = t('btn_send_code');
+            btn.disabled = false;
+        }
+    });
+
+    document.getElementById('publicLoginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('pubLoginEmail').value.trim();
+        const code  = document.getElementById('pubLoginCode').value.trim();
+        try {
+            const res = await axios.post('/public-auth/verify-code', { email, code, group: currentGroup });
+            authToken   = res.data.token;
+            currentUser = res.data.user;
+            localStorage.setItem('authToken', authToken);
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
+            modal.remove();
+            updateUserInfo();
+            initializeCalendar();
+        } catch (err) {
+            alert(err.response?.data?.error || t('alert_login_failed'));
+        }
+    });
 }
 
 // Show login form
@@ -1382,6 +1789,7 @@ function showLoginForm() {
             
             // Store token and user info
             localStorage.setItem('authToken', authToken);
+            localStorage.setItem('adminToken', authToken);
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
             
             // Set default Authorization header for all future requests
@@ -1456,6 +1864,7 @@ function showRegisterForm() {
             
             // Store token and user info
             localStorage.setItem('authToken', authToken);
+            localStorage.setItem('adminToken', authToken);
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
             
             // Set default Authorization header for all future requests
@@ -1477,16 +1886,45 @@ function showRegisterForm() {
     });
 }
 
+// Decode JWT payload client-side (no verification — just for UI hints)
+function decodeJwtPayload(token) {
+    try { return JSON.parse(atob(token.split('.')[1])); } catch { return null; }
+}
+
 // Update user info display
 function updateUserInfo() {
     const userInfo = document.getElementById('userInfo');
     const userName = document.getElementById('userName');
-    
+    const adminLink = document.getElementById('adminLink');
+
+    // Determine admin status from calendar auth OR a live adminToken in localStorage
+    const roleFromCalendar = currentUser && (
+        ['admin', 'superadmin'].includes(currentUser.role) ||
+        (currentGroup && (currentUser.groups || []).some(g => g.name === currentGroup && g.role === 'admin'))
+    );
+    const adminPayload = !roleFromCalendar && decodeJwtPayload(localStorage.getItem('adminToken') || '');
+    const roleFromAdmin = adminPayload &&
+        ['admin', 'superadmin'].includes(adminPayload.role) &&
+        adminPayload.exp * 1000 > Date.now();
+    const isAdmin = roleFromCalendar || roleFromAdmin;
+
     if (currentUser) {
-        userName.textContent = `${currentUser.name} (${currentUser.email})`;
+        userName.textContent = `${currentUser.name || currentUser.email}`;
+        userInfo.style.display = 'flex';
+    } else if (roleFromAdmin) {
+        userName.textContent = adminPayload.email || '';
         userInfo.style.display = 'flex';
     } else {
         userInfo.style.display = 'none';
+    }
+
+    if (adminLink) {
+        if (currentGroup && isAdmin) {
+            adminLink.href = `/admin/${currentGroup}`;
+            adminLink.style.display = '';
+        } else {
+            adminLink.style.display = 'none';
+        }
     }
 }
 
@@ -1494,6 +1932,7 @@ function updateUserInfo() {
 function handleLogout() {
     // Clear auth data
     localStorage.removeItem('authToken');
+    localStorage.removeItem('adminToken');
     localStorage.removeItem('currentUser');
     authToken = null;
     currentUser = null;
@@ -1504,8 +1943,12 @@ function handleLogout() {
     // Update UI
     updateUserInfo();
     
-    // Show login form
-    showLoginForm();
+    // Show appropriate login form
+    if (currentGroupInfo && currentGroupInfo.public) {
+        showPublicLoginForm();
+    } else {
+        showLoginForm();
+    }
 }
 
 // Initialize calendar after authentication
@@ -1558,7 +2001,7 @@ function displayMyBookings(bookings) {
                     <span class="status">${booking.status}</span>
                 </div>
                 ${booking.status === 'confirmed' ? `
-                    <button onclick="cancelBooking('${booking._id}', this)">${t('btn_cancel_booking')}</button>
+                    <button type="button" class="cancel-booking-btn" onclick="cancelBooking('${booking._id}', this)">${t('btn_cancel_booking')}</button>
                 ` : ''}
             </div>
         `;
@@ -1569,7 +2012,7 @@ function displayMyBookings(bookings) {
 
 
 // Show landing page with service information and screenshots
-function showLandingPage() {
+async function showLandingPage() {
     // Hide main calendar UI
     document.querySelector('.container').style.display = 'none';
     document.querySelector('.resources-section').style.display = 'none';
@@ -1625,20 +2068,68 @@ function showLandingPage() {
     
     // Set up group navigation
     const goToGroupBtn = document.getElementById('goToGroupBtn');
-    
-    const navigateToGroup = () => {
+    const statusMsg    = document.getElementById('groupStatusMsg');
+
+    const showGroupStatus = (html) => {
+        statusMsg.innerHTML = html;
+        statusMsg.style.display = 'block';
+    };
+
+    const navigateToGroup = async () => {
         const groupName = groupInput.value.trim().toLowerCase().replace(/\s+/g, '-');
-        if (groupName) {
+        if (!groupName) return;
+
+        statusMsg.style.display = 'none';
+        goToGroupBtn.disabled = true;
+
+        try {
+            await axios.get(`/groups/${groupName}`);
             window.location.href = `/${groupName}`;
+        } catch (err) {
+            goToGroupBtn.disabled = false;
+            if (err.response?.status === 404) {
+                const notFound  = t('landing_group_not_found').replace('{0}', groupName);
+                const prompt    = t('landing_group_register_prompt').replace('{0}', groupName);
+                const btnYes    = t('landing_btn_register_group');
+                const btnNo     = t('landing_btn_dismiss');
+                showGroupStatus(`
+                    <p style="margin:0 0 8px;color:#555">${notFound}</p>
+                    <p style="margin:0 0 12px;color:#333;font-weight:500">${prompt}</p>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <button id="groupRegisterYes" style="padding:8px 16px;background:#007bff;color:#fff;border:none;border-radius:4px;cursor:pointer">${btnYes}</button>
+                        <button id="groupRegisterNo"  style="padding:8px 16px;background:#fff;color:#555;border:1px solid #ccc;border-radius:4px;cursor:pointer">${btnNo}</button>
+                    </div>`);
+                document.getElementById('groupRegisterYes').addEventListener('click', () => { window.location.href = '/register'; });
+                document.getElementById('groupRegisterNo').addEventListener('click', () => {
+                    showGroupStatus(`<p style="color:#c00;margin:0">${notFound}</p>`);
+                });
+            } else {
+                showGroupStatus(`<p style="color:#c00;margin:0">${err.response?.data?.error || err.message}</p>`);
+            }
         }
     };
-    
+
     goToGroupBtn.addEventListener('click', navigateToGroup);
     groupInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            navigateToGroup();
-        }
+        if (e.key === 'Enter') navigateToGroup();
     });
+    groupInput.addEventListener('input', () => { statusMsg.style.display = 'none'; });
+
+    // Populate the user's groups section if logged in
+    if (authToken) {
+        try {
+            const meRes = await axios.get('/users/me');
+            const groups = meRes.data.groups || [];
+            if (groups.length) {
+                document.getElementById('myGroupsList').innerHTML = groups.map(g => `
+                    <a href="/${g.name}" class="landing-group-tile">
+                        ${g.name}<span style="font-size:0.75rem;opacity:0.8;margin-left:6px">(${g.role})</span>
+                    </a>
+                `).join('');
+                document.getElementById('myGroupsSection').style.display = '';
+            }
+        } catch (_) { /* token invalid or endpoint unavailable — silently skip */ }
+    }
 }
 
 let _initDone = false;
@@ -1653,6 +2144,11 @@ async function init() {
     // Update user info display
     updateUserInfo();
 
+    // Set auth header once for all subsequent axios calls
+    if (authToken) {
+        axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
+    }
+
     // No group in URL — show landing page
     if (!currentGroup) {
         showLandingPage();
@@ -1664,6 +2160,29 @@ async function init() {
     try {
         const res = await axios.get(`/groups/${currentGroup}`);
         groupInfo = res.data;
+        currentGroupInfo = groupInfo;
+
+        // Restrict language picker to group-configured languages
+        const langs = groupInfo.languages && groupInfo.languages.length ? groupInfo.languages : null;
+        if (langs) {
+            const picker = document.getElementById('langPicker');
+            if (picker) {
+                const langLabels = { sv: '🇸🇪 Svenska', en: '🇬🇧 English', fr: '🇫🇷 Français', es: '🇪🇸 Español', zh: '🇨🇳 中文' };
+                picker.innerHTML = langs.map(l => `<option value="${l}">${langLabels[l] || l}</option>`).join('');
+                if (langs.length === 1) {
+                    picker.style.display = 'none';
+                    setLanguage(langs[0]);
+                } else {
+                    if (!langs.includes(getCurrentLang())) {
+                        const browserLang = (navigator.language || '').split('-')[0].toLowerCase();
+                        const preferred = langs.includes(browserLang) ? browserLang
+                            : langs.includes('en') ? 'en' : langs[0];
+                        setLanguage(preferred);
+                    }
+                    picker.value = getCurrentLang();
+                }
+            }
+        }
     } catch (e) {
         const url = `/groups/${currentGroup}`;
         console.error('Group fetch failed:', url, e?.response?.status, e?.response?.data, e?.message);
@@ -1678,12 +2197,23 @@ async function init() {
     }
 
     if (groupInfo.public) {
-        // Public group: go straight to calendar, no login required
-        initializeCalendar().catch(err => console.error('Init error:', err));
+        // Public group: require light self-auth (any name + email + code), no admin pre-registration
+        if (authToken) {
+            initializeCalendar().catch(err => {
+                if (err.response?.status === 401 || err.response?.status === 403) {
+                    localStorage.removeItem('authToken');
+                    authToken = null;
+                    showPublicLoginForm();
+                } else {
+                    console.error('Init error:', err);
+                }
+            });
+        } else {
+            showPublicLoginForm();
+        }
     } else {
         // Private group: require authentication
         if (authToken) {
-            axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
             initializeCalendar().catch(error => {
                 if (error.response?.status === 401 || error.response?.status === 403) {
                     localStorage.removeItem('authToken');

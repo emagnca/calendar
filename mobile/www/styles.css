@@ -49,6 +49,21 @@ h1 {
     gap: 8px;
 }
 
+.logout-button {
+    display: inline-block;
+    padding: 5px 12px;
+    background: #f0f0f0;
+    color: #333;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    line-height: 1.4;
+}
+.logout-button:hover { background: #e0e0e0; }
+
 @media (max-width: 480px) {
     .header h1 {
         display: none;
@@ -528,6 +543,20 @@ button[type="submit"]:hover {
     background: #45a049;
 }
 
+.cancel-booking-btn {
+    background: #d32f2f;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.cancel-booking-btn:hover {
+    background: #b71c1c;
+}
+
 .inline-booking-form {
     display: flex;
     align-items: center;
@@ -566,6 +595,58 @@ button[type="submit"]:hover {
     display: flex;
     gap: 10px;
     align-items: center;
+}
+
+/* ── Hamburger / collapsible header menu ── */
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+}
+
+.hamburger {
+    display: block;
+    background: none;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    padding: 4px 8px;
+    color: #333;
+    line-height: 1;
+    border-radius: 4px;
+}
+
+.hamburger:hover { background: #eee; }
+
+.header-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 12px 16px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    z-index: 1000;
+    min-width: 200px;
+}
+
+.header-menu.open { display: flex; }
+
+.header-menu.open .user-info {
+    flex-direction: column;
+    gap: 6px;
+}
+
+.header-menu .logout-button {
+    width: 100%;
+    text-align: center;
+    box-sizing: border-box;
 }
 
 .lang-picker {
@@ -830,6 +911,31 @@ button[type="submit"]:hover {
     color: rgba(255, 255, 255, 0.8);
     font-size: 14px;
     margin-top: 15px;
+}
+
+.landing-groups-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.landing-group-tile {
+    display: inline-block;
+    padding: 10px 22px;
+    background: #4CAF50;
+    color: #fff;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 1rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    transition: background 0.2s, transform 0.15s;
+}
+
+.landing-group-tile:hover {
+    background: #43a047;
+    transform: translateY(-2px);
 }
 
 @media (max-width: 768px) {

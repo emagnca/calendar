@@ -6,8 +6,12 @@
     <title>EasyBooking</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://js.stripe.com/v3/"></script>
     <script src="lang/sv.js"></script>
     <script src="lang/en.js"></script>
+    <script src="lang/fr.js"></script>
+    <script src="lang/es.js"></script>
+    <script src="lang/zh.js"></script>
     <script src="i18n.js"></script>
     <script>
         // API Configuration
@@ -27,14 +31,21 @@
     <div class="container">
         <div class="header">
             <h1 data-i18n="app_title">EasyBooking</h1>
-            <div style="display:flex;align-items:center;gap:8px">
-                <select id="langPicker" class="lang-picker">
-                    <option value="sv">🇸🇪 Svenska</option>
-                    <option value="en">🇬🇧 English</option>
-                </select>
-                <div class="user-info" id="userInfo" style="display: none;">
-                    <span id="userName"></span>
-                    <button id="logoutButton" class="logout-button" data-i18n="logout">Logga ut</button>
+            <div class="header-controls">
+                <button class="hamburger" id="hamburgerBtn" aria-label="Menu">&#9776;</button>
+                <div class="header-menu" id="headerMenu">
+                    <select id="langPicker" class="lang-picker">
+                        <option value="sv">🇸🇪 Svenska</option>
+                        <option value="en">🇬🇧 English</option>
+                        <option value="fr">🇫🇷 Français</option>
+                        <option value="es">🇪🇸 Español</option>
+                        <option value="zh">🇨🇳 中文</option>
+                    </select>
+                    <div class="user-info" id="userInfo" style="display: none;">
+                        <span id="userName"></span>
+                        <a id="adminLink" href="#" class="logout-button" style="display:none" data-i18n="link_admin_view">Admin</a>
+                        <button id="logoutButton" class="logout-button" data-i18n="logout">Logga ut</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -78,6 +89,21 @@
                         <div class="form-group">
                             <label for="timeSlot" data-i18n="select_time_label">Välj tid:</label>
                             <select id="timeSlot" required></select>
+                        </div>
+                        <div id="bookerInfoSection" style="display:none;">
+                            <h4 data-i18n="booker_info_title">Dina uppgifter</h4>
+                            <div class="form-group">
+                                <label for="bookerName" data-i18n="booker_name_label">Ditt namn:</label>
+                                <input type="text" id="bookerName" autocomplete="name" data-i18n-placeholder="booker_name_placeholder">
+                            </div>
+                            <div class="form-group">
+                                <label for="bookerEmail" data-i18n="booker_email_label">Din e-post:</label>
+                                <input type="email" id="bookerEmail" autocomplete="email" data-i18n-placeholder="booker_email_placeholder">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="bookingMessage" data-i18n="booking_message_label">Message (optional):</label>
+                            <textarea id="bookingMessage" rows="3" style="width:100%;resize:vertical" data-i18n-placeholder="booking_message_placeholder"></textarea>
                         </div>
                         <div class="button-group">
                             <button type="button" id="prevStep" data-i18n="btn_back">Tillbaka</button>
@@ -150,6 +176,11 @@
                     </div>
                 </section>
 
+                <section id="myGroupsSection" class="landing-section" style="display:none">
+                    <h2 data-i18n="landing_your_groups">Your groups</h2>
+                    <div id="myGroupsList" class="landing-groups-list"></div>
+                </section>
+
                 <section class="landing-section cta-section">
                     <h2 data-i18n="landing_cta_title">Get Started</h2>
                     <p data-i18n="landing_cta_desc">Enter a group name to access the booking system:</p>
@@ -157,6 +188,7 @@
                         <input type="text" id="groupInput" placeholder="Enter group name..." class="landing-input" data-i18n-placeholder="landing_input_placeholder" />
                         <button id="goToGroupBtn" class="landing-button" data-i18n="landing_go_button">Go to Group</button>
                     </div>
+                    <div id="groupStatusMsg" style="display:none;margin-top:12px;"></div>
                     <div class="landing-register-block">
                         <p class="landing-hint" data-i18n="landing_hint">Or create a new group by registering as an admin.</p>
                         <a href="/register" class="landing-register-btn" data-i18n="link_register">Register new group</a>
@@ -170,6 +202,16 @@
 <script src="script.js"></script>
 <script src="mobile-landing.js"></script>
 <script src="mobile-calendar.js"></script>
+<script>
+(function(){
+    var btn=document.getElementById('hamburgerBtn');
+    var menu=document.getElementById('headerMenu');
+    if(!btn||!menu)return;
+    btn.addEventListener('click',function(e){e.stopPropagation();menu.classList.toggle('open');});
+    document.addEventListener('click',function(){menu.classList.remove('open');});
+    menu.addEventListener('click',function(e){e.stopPropagation();});
+})();
+</script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             initI18n();

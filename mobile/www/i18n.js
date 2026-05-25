@@ -1,5 +1,5 @@
-const LANGS = { sv, en };
-const FALLBACK = 'sv';
+const LANGS = { sv, en, fr, es, zh };
+const FALLBACK = 'en';
 
 let currentLang = FALLBACK;
 

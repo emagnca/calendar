@@ -3,15 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <base href="/">
     <title>Admin</title>
-    <link rel="stylesheet" href="admin/admin.css">
+    <link rel="stylesheet" href="./admin.css">
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <script src="lang/sv.js"></script>
-    <script src="lang/en.js"></script>
-    <script src="i18n.js"></script>
+    <script src="../lang/sv.js"></script>
+    <script src="../lang/en.js"></script>
+    <script src="../lang/fr.js"></script>
+    <script src="../lang/es.js"></script>
+    <script src="../lang/zh.js"></script>
+    <script src="../i18n.js"></script>
     <script>
-        axios.defaults.baseURL = '/api';
+        axios.defaults.baseURL = 'https://mr3xmgyqnxzrszocyvutnjknty0eodkp.lambda-url.eu-north-1.on.aws/api';
         axios.interceptors.response.use(
             r => r,
             e => { console.error('API Error:', e.response?.data || e.message); return Promise.reject(e); }
@@ -44,15 +46,29 @@
     <header class="topbar">
         <span class="topbar-title">Admin — <span id="groupLabel"></span></span>
         <div class="topbar-right">
-            <select id="groupSwitcher" class="lang-picker" style="display:none"></select>
-            <select id="langPicker" class="lang-picker">
-                <option value="sv">🇸🇪 Svenska</option>
-                <option value="en">🇬🇧 English</option>
-            </select>
-            <span id="currentUserName"></span>
-            <button class="btn btn-sm btn-danger" id="btnLogout" data-i18n="logout">Logout</button>
+            <button class="topbar-hamburger" id="adminHamburgerBtn" aria-label="Menu">&#9776;</button>
+            <div class="topbar-menu" id="adminHeaderMenu">
+                <select id="groupSwitcher" class="lang-picker" style="display:none"></select>
+                <select id="langPicker" class="lang-picker">
+                    <option value="sv">🇸🇪 Svenska</option>
+                    <option value="en">🇬🇧 English</option>
+                    <option value="fr">🇫🇷 Français</option>
+                    <option value="es">🇪🇸 Español</option>
+                    <option value="zh">🇨🇳 中文</option>
+                </select>
+                <span id="currentUserName"></span>
+                <a id="calendarLink" href="#" class="btn btn-sm btn-secondary" style="color:#333;text-decoration:none" data-i18n="admin_link_view_calendar">View Calendar</a>
+                <button class="btn btn-sm btn-danger" id="btnLogout" data-i18n="logout">Logout</button>
+            </div>
         </div>
     </header>
+
+    <!-- Group picker — shown when no group in URL -->
+    <div id="groupPicker" style="display:none;padding:40px 32px">
+        <h2 data-i18n="admin_picker_title">Your groups</h2>
+        <p data-i18n="admin_picker_subtitle" style="color:#666;margin-bottom:24px">Select a group to manage.</p>
+        <div id="groupPickerList" style="display:flex;flex-wrap:wrap;gap:16px"></div>
+    </div>
 
     <div class="layout">
         <nav class="sidebar">
@@ -61,6 +77,8 @@
                 <li><a href="#" data-tab="users" data-i18n="admin_nav_users">Users</a></li>
                 <li><a href="#" data-tab="bookings" data-i18n="admin_nav_bookings">Bookings</a></li>
                 <li id="groupsNav" style="display:none"><a href="#" data-tab="groups" data-i18n="admin_nav_groups">Groups</a></li>
+                <li><a href="#" data-tab="blocked" data-i18n="admin_nav_blocked">Blocked Periods</a></li>
+                <li><a href="#" data-tab="settings" data-i18n="admin_nav_settings">Settings</a></li>
             </ul>
         </nav>
 
@@ -77,6 +95,7 @@
                             <th data-i18n="admin_th_id">ID</th>
                             <th data-i18n="admin_th_name">Name (sv / en)</th>
                             <th data-i18n="admin_th_slot">Slot (min)</th>
+                            <th data-i18n="admin_th_capacity">Capacity</th>
                             <th data-i18n="admin_th_hours">Hours</th>
                             <th data-i18n="admin_th_active">Active</th>
                             <th></th>
@@ -123,12 +142,47 @@
                             <th data-i18n="admin_th_time">Time</th>
                             <th data-i18n="admin_th_resource">Resource</th>
                             <th data-i18n="admin_th_email">Email</th>
+                            <th data-i18n="admin_th_message">Message</th>
                             <th data-i18n="admin_th_status">Status</th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody id="bookingsBody"></tbody>
                 </table>
+            </section>
+
+            <!-- Blocked Periods -->
+            <section id="tab-blocked" class="tab">
+                <div class="section-header">
+                    <h2 data-i18n="admin_nav_blocked">Blocked Periods</h2>
+                    <button class="btn btn-primary" id="btnAddBlock" data-i18n="admin_blocked_btn_add">+ Add block</button>
+                </div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th data-i18n="admin_th_resource">Resource</th>
+                            <th data-i18n="admin_blocked_th_period">Period</th>
+                            <th data-i18n="admin_blocked_th_time">Time</th>
+                            <th data-i18n="admin_field_reason">Reason</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="blockedBody"></tbody>
+                </table>
+            </section>
+
+            <!-- Settings -->
+            <section id="tab-settings" class="tab">
+                <div class="section-header">
+                    <h2 data-i18n="admin_nav_settings">Settings</h2>
+                </div>
+                <div class="field" style="max-width:400px">
+                    <label data-i18n="admin_field_languages">Available languages</label>
+                    <div id="langCheckboxes" style="display:flex;gap:16px;margin-top:8px"></div>
+                </div>
+                <div style="margin-top:16px">
+                    <button class="btn btn-primary" id="btnSaveSettings" data-i18n="admin_btn_save">Save</button>
+                </div>
             </section>
 
             <!-- Groups (superadmin) -->
@@ -167,6 +221,16 @@
     </div>
 </div>
 
-<script src="admin/admin.js"></script>
+<script src="./admin.js"></script>
+<script>
+(function(){
+    var btn=document.getElementById('adminHamburgerBtn');
+    var menu=document.getElementById('adminHeaderMenu');
+    if(!btn||!menu)return;
+    btn.addEventListener('click',function(e){e.stopPropagation();menu.classList.toggle('open');});
+    document.addEventListener('click',function(){menu.classList.remove('open');});
+    menu.addEventListener('click',function(e){e.stopPropagation();});
+})();
+</script>
 </body>
 </html>
