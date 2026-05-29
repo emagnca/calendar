@@ -26,6 +26,29 @@
             }
         );
     </script>
+<style id="mobile-nav-override">
+  .header-controls {
+    position: fixed !important;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 20px !important;
+    top: auto !important;
+    z-index: 9999 !important;
+  }
+  .header-menu {
+    top: auto !important;
+    bottom: calc(100% + 8px) !important;
+  }
+  .hamburger {
+    width: 48px !important; height: 48px !important;
+    font-size: 22px !important;
+    background: #1976d2 !important; color: white !important;
+    border-radius: 50% !important;
+    box-shadow: 0 3px 14px rgba(0,0,0,0.35) !important;
+    display: flex !important; align-items: center !important; justify-content: center !important;
+    padding: 0 !important;
+  }
+  .container { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important; }
+</style>
 </head>
 <body>
     <div class="container">

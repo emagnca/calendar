@@ -340,6 +340,15 @@ class ApiCalendar {
         });
 
         // Groups
+        router.get('/groups', async (req, res) => {
+            try {
+                const groups = await Group.find({ public: true }, 'name').sort('name');
+                res.json(groups.map(g => g.name));
+            } catch (error) {
+                res.status(500).json({ error: error.message });
+            }
+        });
+
         router.get('/groups/:name', async (req, res) => {
             try {
                 const group = await Group.findOne({ name: req.params.name.toLowerCase() });

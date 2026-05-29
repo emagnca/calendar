@@ -11,8 +11,8 @@
  *   CAL_STRIPE_SECRET_KEY      – Stripe secret key  (sk_live_… / sk_test_…)
  *   CAL_STRIPE_WEBHOOK_SECRET  – Stripe webhook signing secret (whsec_…)
  *
- * Resource model must have:
- *   price    {Number}  price in smallest currency unit (e.g. öre / cents); 0 = free
+ * Group model must have:
+ *   to_pay   {Number}  price in smallest currency unit (e.g. öre / cents); 0 = free
  *   currency {String}  ISO 4217 lowercase (default 'sek')
  *
  * Event model must have:
@@ -24,8 +24,10 @@ const express       = require('express');
 const Stripe        = require('stripe');
 const { getSecret } = require('../utils/utils');
 const auth          = require('./auth');
+const Group         = require('../models/Group');
 const Resource      = require('../models/Resource');
 const Event         = require('../models/Event');
+const Payment       = require('../models/Payment');
 const BlockedPeriod = require('../models/BlockedPeriod');
 
 const router = express.Router();
@@ -63,43 +65,49 @@ router.post('/create-intent', auth, async (req, res) => {
             return res.status(400).json({ error: 'group, resourceId, date and time are required' });
         }
 
-        const resource = await Resource.findOne({ resourceId });
-        if (!resource)            return res.status(404).json({ error: 'Resource not found' });
-        if (!resource.price || resource.price <= 0)
-            return res.status(400).json({ error: 'This resource does not require payment' });
+        const grp = await Group.findOne({ name: group.toLowerCase() });
+        if (!grp)                         return res.status(404).json({ error: 'Group not found' });
+        if (!grp.to_pay || grp.to_pay <= 0)
+            return res.status(400).json({ error: 'This group does not require payment' });
 
-        // Check not blocked
-        const bookingDate = new Date(date);
-        bookingDate.setHours(0, 0, 0, 0);
-        const blocks = await BlockedPeriod.find({
-            group,
-            startDate: { $lte: bookingDate },
-            endDate:   { $gte: bookingDate },
-            $or: [{ resourceId: null }, { resourceId }]
-        });
-        const isBlocked = blocks.some(bp =>
-            !bp.startTime || (time >= bp.startTime && time < bp.endTime)
-        );
-        if (isBlocked)
-            return res.status(409).json({ error: 'This date/time is blocked by the administrator' });
+        // Resource and slot checks are only relevant for booking payments, not admin payments
+        if (resourceId !== '_admin') {
+            const resource = await Resource.findOne({ resourceId });
+            if (!resource) return res.status(404).json({ error: 'Resource not found' });
 
-        // Check slot is not already full
-        const bookingCount = await Event.countDocuments({
-            resourceId,
-            date: new Date(date),
-            time,
-            status: 'confirmed'
-        });
-        if (bookingCount >= (resource.capacity || 1))
-            return res.status(409).json({ error: 'Time slot is fully booked' });
+            // Check not blocked
+            const bookingDate = new Date(date);
+            bookingDate.setHours(0, 0, 0, 0);
+            const blocks = await BlockedPeriod.find({
+                group,
+                startDate: { $lte: bookingDate },
+                endDate:   { $gte: bookingDate },
+                $or: [{ resourceId: null }, { resourceId }]
+            });
+            const isBlocked = blocks.some(bp =>
+                !bp.startTime || (time >= bp.startTime && time < bp.endTime)
+            );
+            if (isBlocked)
+                return res.status(409).json({ error: 'This date/time is blocked by the administrator' });
+
+            // Check slot is not already full
+            const bookingCount = await Event.countDocuments({
+                resourceId,
+                date: new Date(date),
+                time,
+                status: 'confirmed'
+            });
+            if (bookingCount >= (resource.capacity || 1))
+                return res.status(409).json({ error: 'Time slot is fully booked' });
+        }
 
         const stripeClient = await getStripe();
         const userId    = req.user ? (req.user._id || req.user.userId || '') : '';
         const userEmail = req.user ? (req.user.email || '') : '';
 
         const intent = await stripeClient.paymentIntents.create({
-            amount:   resource.price,
-            currency: resource.currency || 'sek',
+            amount:   grp.to_pay,
+            currency: grp.currency || 'sek',
             metadata: {
                 group,
                 resourceId,
@@ -114,8 +122,8 @@ router.post('/create-intent', auth, async (req, res) => {
         res.json({
             clientSecret: intent.client_secret,
             intentId:     intent.id,
-            amount:       resource.price,
-            currency:     resource.currency || 'sek'
+            amount:       grp.to_pay,
+            currency:     grp.currency || 'sek'
         });
     } catch (e) {
         console.error('create-intent error:', e.message);
@@ -148,29 +156,36 @@ router.post('/webhook', async (req, res) => {
 
     if (event.type === 'payment_intent.succeeded') {
         const intent = event.data.object;
-        const { group, resourceId, date, time, userId, userEmail, bookerName } = intent.metadata;
+        const { group, userId, userEmail, bookerName } = intent.metadata;
         try {
-            // Idempotency — ignore if booking was already created
-            const existing = await Event.findOne({ paymentIntentId: intent.id });
+            // Idempotency — ignore if already recorded
+            const existing = await Payment.findOne({ paymentIntentId: intent.id });
             if (existing) return res.json({ received: true });
 
-            const resource = await Resource.findOne({ resourceId });
-            await Event.create({
-                resourceId,
-                resourceName:     resource ? resource.name : resourceId,
-                userId:           userId || null,
-                userEmail:        userEmail || null,
-                bookerName:       bookerName || null,
-                date:             new Date(date),
-                time,
-                group,
-                status:           'confirmed',
-                paymentIntentId:  intent.id,
-                paymentStatus:    'paid'
+            // Store payment record
+            await Payment.create({
+                paymentIntentId: intent.id,
+                group:           group || '',
+                amount:          intent.amount,
+                currency:        intent.currency,
+                userId:          userId || null,
+                userEmail:       userEmail || null,
+                bookerName:      bookerName || null,
+                status:          'paid',
+                stripeEvent:     event.id
             });
-            console.log(`Booking created via webhook: ${resourceId} ${date} ${time} (${intent.id})`);
+
+            // Clear the group's pending payment
+            if (group) {
+                await Group.findOneAndUpdate(
+                    { name: group.toLowerCase() },
+                    { to_pay: 0 }
+                );
+            }
+
+            console.log(`Payment recorded for group "${group}": ${intent.amount} ${intent.currency} (${intent.id})`);
         } catch (e) {
-            console.error('Webhook booking creation error:', e.message);
+            console.error('Webhook payment recording error:', e.message);
             return res.status(500).json({ error: e.message });
         }
     }

@@ -27,6 +27,8 @@ const zh = {
     landing_group_not_found: '未找到组"{0}"。',
     landing_group_register_prompt: '是否要将"{0}"注册为新组？',
     link_admin_view: '管理员',
+    link_switch_calendar: '切换日历',
+    link_browse_all_calendars: '查看全部…',
     admin_link_view_calendar: '查看日历',
     landing_btn_register_group: '是，注册组',
     landing_btn_dismiss: '否，取消',
@@ -214,4 +216,9 @@ const zh = {
     admin_confirm_delete_resource: '删除此资源？现有预订将保留。',
     admin_confirm_delete_user: '删除此用户？此操作无法撤销。',
     admin_confirm_delete_group: '删除组"{0}"？这不会删除其资源或用户。',
+    landing_public_calendars: '公开日历',
+    landing_login_title: '登录',
+    landing_login_desc: '登录以查看您的组和预订。',
+    landing_login_toggle: '已有账号？登录',
+    landing_code_sent: '验证码已发送—请查收邮件。',
 };

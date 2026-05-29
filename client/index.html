@@ -45,6 +45,10 @@
                     <div class="user-info" id="userInfo" style="display: none;">
                         <span id="userName"></span>
                         <a id="adminLink" href="#" class="logout-button" style="display:none" data-i18n="link_admin_view">Admin</a>
+                        <div id="calendarSwitcher" class="calendar-switcher" style="display:none">
+                            <button id="calendarSwitcherBtn" class="logout-button switcher-toggle" data-i18n="link_switch_calendar">Change calendar</button>
+                            <div id="calendarSwitcherList" class="switcher-list" style="display:none"></div>
+                        </div>
                         <button id="logoutButton" class="logout-button" data-i18n="logout">Logga ut</button>
                     </div>
                 </div>
@@ -148,38 +152,78 @@
                     <p data-i18n="landing_welcome_desc">A modern resource booking system designed to simplify scheduling and resource management. Select or create a group to get started.</p>
                 </section>
 
-                <section class="landing-section">
-                    <h2 data-i18n="landing_features_title">Features</h2>
-                    <ul class="features-list">
-                        <li data-i18n="landing_feature_1">📅 Easy calendar-based booking</li>
-                        <li data-i18n="landing_feature_2">👥 Group-based resource management</li>
-                        <li data-i18n="landing_feature_3">🔐 Secure authentication</li>
-                        <li data-i18n="landing_feature_4">📧 Email notifications</li>
-                        <li data-i18n="landing_feature_5">⚙️ Admin dashboard</li>
-                        <li data-i18n="landing_feature_6">🔓 Public or private calendars</li>
-                        <li data-i18n="landing_feature_7">🏠 Book any type of resource — rooms, equipment, and more</li>
-                    </ul>
-                </section>
-
-                <section class="landing-section">
-                    <h2 data-i18n="landing_calendar_title">Calendar Interface</h2>
-                    <p data-i18n="landing_calendar_desc">Intuitive calendar view for browsing and booking resources:</p>
-                    <div class="landing-image-container">
-                        <img id="calendarImage" src="" alt="Calendar Interface" class="landing-image" />
+                <section id="landing-sec-features" class="landing-section">
+                    <h2 class="collapsible-heading"><span data-i18n="landing_features_title">Features</span><button class="section-toggle" aria-expanded="true">&#8963;</button></h2>
+                    <div class="section-body">
+                        <ul class="features-list">
+                            <li data-i18n="landing_feature_1">📅 Easy calendar-based booking</li>
+                            <li data-i18n="landing_feature_2">👥 Group-based resource management</li>
+                            <li data-i18n="landing_feature_3">🔐 Secure authentication</li>
+                            <li data-i18n="landing_feature_4">📧 Email notifications</li>
+                            <li data-i18n="landing_feature_5">⚙️ Admin dashboard</li>
+                            <li data-i18n="landing_feature_6">🔓 Public or private calendars</li>
+                            <li data-i18n="landing_feature_7">🏠 Book any type of resource — rooms, equipment, and more</li>
+                        </ul>
                     </div>
                 </section>
 
-                <section class="landing-section">
-                    <h2 data-i18n="landing_admin_title">Admin Dashboard</h2>
-                    <p data-i18n="landing_admin_desc">Manage resources and bookings with our comprehensive admin interface:</p>
-                    <div class="landing-image-container">
-                        <img id="adminImage" src="" alt="Admin Interface" class="landing-image" />
+                <section id="landing-sec-calendar" class="landing-section">
+                    <h2 class="collapsible-heading"><span data-i18n="landing_calendar_title">Calendar Interface</span><button class="section-toggle" aria-expanded="true">&#8963;</button></h2>
+                    <div class="section-body">
+                        <p data-i18n="landing_calendar_desc">Intuitive calendar view for browsing and booking resources:</p>
+                        <div class="landing-image-container">
+                            <img id="calendarImage" src="" alt="Calendar Interface" class="landing-image" />
+                        </div>
+                    </div>
+                </section>
+
+                <section id="landing-sec-admin" class="landing-section">
+                    <h2 class="collapsible-heading"><span data-i18n="landing_admin_title">Admin Dashboard</span><button class="section-toggle" aria-expanded="true">&#8963;</button></h2>
+                    <div class="section-body">
+                        <p data-i18n="landing_admin_desc">Manage resources and bookings with our comprehensive admin interface:</p>
+                        <div class="landing-image-container">
+                            <img id="adminImage" src="" alt="Admin Interface" class="landing-image" />
+                        </div>
+                    </div>
+                </section>
+
+                <section id="landingLoginSection" class="landing-section">
+                    <h2 data-i18n="landing_login_title">Sign in</h2>
+                    <p style="color:#666;margin:0 0 16px" data-i18n="landing_login_desc">Sign in to see your groups and bookings.</p>
+                    <div id="landingLoggedIn" style="display:none;align-items:center;gap:16px;flex-wrap:wrap">
+                        <span id="landingUserName" style="font-weight:600;font-size:16px"></span>
+                        <button id="landingLogoutBtn" class="landing-button" style="background:#f5f5f5;color:#333;border:1px solid #ddd;padding:8px 20px;font-size:14px" data-i18n="logout">Log out</button>
+                    </div>
+                    <div id="landingLoginForm">
+                        <div class="form-group">
+                            <label for="landingEmail" data-i18n="label_email">Email</label>
+                            <input type="email" id="landingEmail" autocomplete="email"
+                                style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #ccc;border-radius:6px;font-size:14px;margin-top:4px">
+                        </div>
+                        <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+                            <button id="landingSendCodeBtn" class="landing-button" style="padding:8px 20px;font-size:14px" data-i18n="btn_send_code">Send code</button>
+                            <span id="landingCodeSent" style="display:none;font-size:13px;color:#4caf50" data-i18n="landing_code_sent">Code sent — check your email.</span>
+                        </div>
+                        <div class="form-group" style="margin-top:16px">
+                            <label for="landingCode" data-i18n="label_code">Code</label>
+                            <input type="text" id="landingCode" maxlength="6" autocomplete="one-time-code"
+                                style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #ccc;border-radius:6px;font-size:18px;letter-spacing:6px;margin-top:4px">
+                        </div>
+                        <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+                            <button id="landingLoginBtn" class="landing-button" style="padding:8px 20px;font-size:14px" data-i18n="btn_login">Log in</button>
+                            <span id="landingLoginErr" style="color:#dc3545;font-size:13px"></span>
+                        </div>
                     </div>
                 </section>
 
                 <section id="myGroupsSection" class="landing-section" style="display:none">
                     <h2 data-i18n="landing_your_groups">Your groups</h2>
                     <div id="myGroupsList" class="landing-groups-list"></div>
+                </section>
+
+                <section id="publicGroupsSection" class="landing-section" style="display:none">
+                    <h2 data-i18n="landing_public_calendars">Public calendars</h2>
+                    <div id="publicGroupsList" class="landing-groups-list"></div>
                 </section>
 
                 <section class="landing-section cta-section">

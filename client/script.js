@@ -894,7 +894,7 @@ function formatAmount(amountMinor, currency) {
     return (amountMinor / 100).toFixed(2) + ' ' + currency.toUpperCase();
 }
 
-async function showPaymentModal(resourceId, time, resourceObj) {
+async function showPaymentModal(resourceId, time, groupPayment) {
     let stripe;
     try {
         stripe = await initStripe();
@@ -903,7 +903,7 @@ async function showPaymentModal(resourceId, time, resourceObj) {
         return;
     }
 
-    const amountStr = formatAmount(resourceObj.price, resourceObj.currency || 'sek');
+    const amountStr = formatAmount(groupPayment.to_pay, groupPayment.currency || 'sek');
 
     const overlay = document.createElement('div');
     overlay.className = 'payment-overlay';
@@ -1022,9 +1022,8 @@ function promptBookingMessage() {
 async function handleInlineBooking(resource, time) {
     if (!selectedDate) return;
 
-    const resourceObj = resources.find(r => r.resourceId === resource);
-    if (resourceObj && resourceObj.price > 0) {
-        await showPaymentModal(resource, time, resourceObj);
+    if (currentGroupInfo && currentGroupInfo.to_pay > 0) {
+        await showPaymentModal(resource, time, currentGroupInfo);
         return;
     }
 
@@ -1109,10 +1108,9 @@ async function handleBooking(event) {
     const resource = document.getElementById('resourceSelect').value;
     const time = document.getElementById('timeSlot').value;
 
-    const resourceObj = resources.find(r => r.resourceId === resource);
-    if (resourceObj && resourceObj.price > 0) {
+    if (currentGroupInfo && currentGroupInfo.to_pay > 0) {
         bookingModal.style.display = 'none';
-        await showPaymentModal(resource, time, resourceObj);
+        await showPaymentModal(resource, time, currentGroupInfo);
         return;
     }
 
@@ -1924,6 +1922,69 @@ function updateUserInfo() {
             adminLink.style.display = 'none';
         }
     }
+
+    // Calendar switcher — always show; lists member groups + public groups
+    const switcher     = document.getElementById('calendarSwitcher');
+    const switcherBtn  = document.getElementById('calendarSwitcherBtn');
+    const switcherList = document.getElementById('calendarSwitcherList');
+    if (switcher && switcherBtn && switcherList) {
+        switcher.style.display = '';
+        if (!switcherBtn._listenerAttached) {
+            switcherBtn._listenerAttached = true;
+            switcherBtn.addEventListener('click', async () => {
+                const isOpen = switcherList.style.display !== 'none';
+                if (isOpen) { switcherList.style.display = 'none'; return; }
+
+                switcherList.innerHTML = `<span style="font-size:12px;color:#888;padding:4px 8px">${t('loading') || 'Loading…'}</span>`;
+                switcherList.style.display = 'flex';
+
+                // Collect member groups from JWT
+                const memberNames = new Set(
+                    ((currentUser && currentUser.groups) || []).map(g => g.name)
+                );
+
+                // Fetch public groups from server
+                let publicNames = [];
+                try {
+                    const res = await axios.get('/groups');
+                    publicNames = res.data || [];
+                } catch (_) {}
+
+                // Merge: member groups first, then public-only ones, excluding current
+                const allNames = [
+                    ...Array.from(memberNames),
+                    ...publicNames.filter(n => !memberNames.has(n))
+                ].filter(n => n !== currentGroup).sort();
+
+                if (allNames.length === 0) {
+                    switcherList.innerHTML = `<a href="/">${t('link_browse_all_calendars')}</a>`;
+                    return;
+                }
+
+                const renderList = (filter) => {
+                    const filtered = filter
+                        ? allNames.filter(n => n.toLowerCase().includes(filter.toLowerCase()))
+                        : allNames;
+                    const items = filtered.map(n =>
+                        `<a href="/${n}" style="font-weight:${memberNames.has(n) ? '600' : 'normal'}">${n}</a>`
+                    ).join('');
+                    switcherList.querySelector('.switcher-items').innerHTML =
+                        items || `<span style="font-size:12px;color:#888;padding:4px 8px">${t('no_resources') || 'None found'}</span>`;
+                };
+
+                switcherList.innerHTML = allNames.length > 6
+                    ? `<input class="switcher-search" type="text" placeholder="${t('landing_input_placeholder') || 'Search…'}"
+                            style="border:1px solid #ccc;border-radius:4px;padding:5px 8px;font-size:13px;width:100%;box-sizing:border-box;margin-bottom:4px">
+                       <div class="switcher-items" style="display:flex;flex-direction:column;gap:4px;max-height:200px;overflow-y:auto"></div>`
+                    : `<div class="switcher-items" style="display:flex;flex-direction:column;gap:4px"></div>`;
+
+                renderList('');
+
+                const searchEl = switcherList.querySelector('.switcher-search');
+                if (searchEl) searchEl.addEventListener('input', e => renderList(e.target.value));
+            });
+        }
+    }
 }
 
 // Handle logout
@@ -2026,6 +2087,44 @@ async function showLandingPage() {
         el.textContent = t(key);
     });
     
+    // ── Collapsible info sections (2, 3, 4) ──────────────────────────────
+    const COLLAPSE_KEY = 'landing_collapsed';
+    const collapsibleIds = ['landing-sec-features', 'landing-sec-calendar', 'landing-sec-admin'];
+    let collapseState = {};
+    try { collapseState = JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '{}'); } catch (_) {}
+
+    const applyCollapse = (sectionEl, collapsed) => {
+        const body   = sectionEl.querySelector('.section-body');
+        const btn    = sectionEl.querySelector('.section-toggle');
+        const h2     = sectionEl.querySelector('.collapsible-heading');
+        if (!body || !btn) return;
+        if (collapsed) {
+            body.classList.add('collapsed');
+            h2.classList.add('collapsed');
+            btn.setAttribute('aria-expanded', 'false');
+        } else {
+            body.classList.remove('collapsed');
+            h2.classList.remove('collapsed');
+            btn.setAttribute('aria-expanded', 'true');
+        }
+    };
+
+    collapsibleIds.forEach(id => {
+        const sec = document.getElementById(id);
+        if (!sec) return;
+        applyCollapse(sec, !!collapseState[id]);
+        const btn = sec.querySelector('.section-toggle');
+        if (btn && !btn._listenerAttached) {
+            btn._listenerAttached = true;
+            btn.addEventListener('click', () => {
+                const nowCollapsed = !sec.querySelector('.section-body').classList.contains('collapsed');
+                collapseState[id] = nowCollapsed;
+                localStorage.setItem(COLLAPSE_KEY, JSON.stringify(collapseState));
+                applyCollapse(sec, nowCollapsed);
+            });
+        }
+    });
+
     // Handle placeholder translation
     const groupInput = document.getElementById('groupInput');
     const placeholderKey = groupInput.getAttribute('data-i18n-placeholder');
@@ -2113,21 +2212,162 @@ async function showLandingPage() {
     });
     groupInput.addEventListener('input', () => { statusMsg.style.display = 'none'; });
 
+    // ── Landing login section ──────────────────────────────────────────────
+    const landingLoginForm  = document.getElementById('landingLoginForm');
+    const landingLoggedIn   = document.getElementById('landingLoggedIn');
+    const landingUserName   = document.getElementById('landingUserName');
+    const landingLogoutBtn  = document.getElementById('landingLogoutBtn');
+    const landingSendBtn    = document.getElementById('landingSendCodeBtn');
+    const landingLoginBtn   = document.getElementById('landingLoginBtn');
+    const landingEmailEl    = document.getElementById('landingEmail');
+    const landingCodeEl     = document.getElementById('landingCode');
+    const landingCodeSent   = document.getElementById('landingCodeSent');
+    const landingLoginErr   = document.getElementById('landingLoginErr');
+
+    const showLandingLoggedIn = (user) => {
+        landingLoginForm.style.display  = 'none';
+        landingLoggedIn.style.display   = 'flex';
+        landingUserName.textContent     = user.name || user.email || '';
+    };
+
+    const showLandingLoggedOut = () => {
+        landingLoginForm.style.display  = '';
+        landingLoggedIn.style.display   = 'none';
+        if (landingCodeSent) landingCodeSent.style.display = 'none';
+        if (landingLoginErr) landingLoginErr.textContent   = '';
+    };
+
+    if (authToken && currentUser) {
+        showLandingLoggedIn(currentUser);
+    } else {
+        showLandingLoggedOut();
+    }
+
+    if (landingSendBtn && !landingSendBtn._listenerAttached) {
+        landingSendBtn._listenerAttached = true;
+        landingSendBtn.addEventListener('click', async () => {
+            const email = landingEmailEl.value.trim();
+            if (!email) { landingLoginErr.textContent = t('alert_enter_email'); return; }
+            landingLoginErr.textContent = '';
+            landingSendBtn.disabled = true;
+            landingSendBtn.textContent = t('btn_sending');
+            try {
+                await axios.post('/send-login-code', { email });
+                landingCodeSent.style.display = '';
+                landingCodeEl.focus();
+            } catch (e) {
+                landingLoginErr.textContent = e.response?.data?.error || e.message;
+            } finally {
+                landingSendBtn.disabled = false;
+                landingSendBtn.textContent = t('btn_send_code');
+            }
+        });
+    }
+
+    if (landingLoginBtn && !landingLoginBtn._listenerAttached) {
+        landingLoginBtn._listenerAttached = true;
+        landingLoginBtn.addEventListener('click', async () => {
+            const email = landingEmailEl.value.trim();
+            const code  = landingCodeEl.value.trim();
+            if (!email || !code) { landingLoginErr.textContent = t('alert_enter_email'); return; }
+            landingLoginErr.textContent = '';
+            landingLoginBtn.disabled = true;
+            try {
+                const res = await axios.post('/login', { email, code });
+                authToken   = res.data.token;
+                currentUser = res.data.user;
+                localStorage.setItem('authToken', authToken);
+                localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
+                showLandingLoggedIn(currentUser);
+                // Refresh groups sections
+                await populateLandingGroups();
+            } catch (e) {
+                landingLoginErr.textContent = e.response?.data?.error || e.message;
+                landingLoginBtn.disabled = false;
+            }
+        });
+        landingCodeEl.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') landingLoginBtn.click();
+        });
+    }
+
+    if (landingLogoutBtn && !landingLogoutBtn._listenerAttached) {
+        landingLogoutBtn._listenerAttached = true;
+        landingLogoutBtn.addEventListener('click', () => {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('currentUser');
+            authToken = null; currentUser = null;
+            delete axios.defaults.headers.common['Authorization'];
+            showLandingLoggedOut();
+            document.getElementById('myGroupsSection').style.display = 'none';
+            populateLandingGroups();
+        });
+    }
+
+    await populateLandingGroups();
+}
+
+async function populateLandingGroups() {
     // Populate the user's groups section if logged in
+    let memberGroupNames = new Set();
     if (authToken) {
         try {
             const meRes = await axios.get('/users/me');
             const groups = meRes.data.groups || [];
             if (groups.length) {
+                memberGroupNames = new Set(groups.map(g => g.name));
                 document.getElementById('myGroupsList').innerHTML = groups.map(g => `
                     <a href="/${g.name}" class="landing-group-tile">
                         ${g.name}<span style="font-size:0.75rem;opacity:0.8;margin-left:6px">(${g.role})</span>
                     </a>
                 `).join('');
                 document.getElementById('myGroupsSection').style.display = '';
+            } else {
+                document.getElementById('myGroupsSection').style.display = 'none';
             }
-        } catch (_) { /* token invalid or endpoint unavailable — silently skip */ }
+        } catch (_) {
+            document.getElementById('myGroupsSection').style.display = 'none';
+        }
+    } else {
+        document.getElementById('myGroupsSection').style.display = 'none';
     }
+
+    // Populate public calendars section (always, no auth needed)
+    try {
+        const pubRes = await axios.get('/groups');
+        const publicGroups = (pubRes.data || []).filter(n => !memberGroupNames.has(n));
+        if (publicGroups.length) {
+            const section = document.getElementById('publicGroupsSection');
+            const list    = document.getElementById('publicGroupsList');
+            const LIMIT   = 50;
+            const hasMore = publicGroups.length > LIMIT;
+
+            const renderTiles = (items) =>
+                items.map(n => `<a href="/${n}" class="landing-group-tile">${n}</a>`).join('');
+
+            if (hasMore) {
+                list.innerHTML = `
+                    <input id="publicGroupSearch" type="text"
+                        placeholder="${t('landing_input_placeholder') || 'Search…'}"
+                        style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #ccc;
+                               border-radius:6px;font-size:14px;margin-bottom:12px">
+                    <div id="publicGroupTiles">${renderTiles(publicGroups.slice(0, LIMIT))}</div>`;
+
+                document.getElementById('publicGroupSearch').addEventListener('input', function () {
+                    const q = this.value.toLowerCase();
+                    const filtered = q
+                        ? publicGroups.filter(n => n.toLowerCase().includes(q)).slice(0, LIMIT)
+                        : publicGroups.slice(0, LIMIT);
+                    document.getElementById('publicGroupTiles').innerHTML = renderTiles(filtered);
+                });
+            } else {
+                list.innerHTML = renderTiles(publicGroups);
+            }
+
+            section.style.display = '';
+        }
+    } catch (_) { /* silently skip */ }
 }
 
 let _initDone = false;

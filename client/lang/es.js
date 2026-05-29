@@ -5,6 +5,8 @@ const es = {
     // Nav / header
     logout: 'Cerrar sesión',
     link_admin_view: 'Admin',
+    link_switch_calendar: 'Cambiar calendario',
+    link_browse_all_calendars: 'Ver todos…',
 
     // Calendar weekdays
     day_sun: 'Dom', day_mon: 'Lun', day_tue: 'Mar', day_wed: 'Mié',
@@ -166,4 +168,9 @@ const es = {
     admin_confirm_delete_resource: '¿Eliminar este recurso? Las reservas existentes se conservarán.',
     admin_confirm_delete_user: '¿Eliminar este usuario? Esta acción no se puede deshacer.',
     admin_confirm_delete_group: '¿Eliminar el grupo "{0}"? Sus recursos y usuarios NO serán eliminados.',
+    landing_public_calendars: 'Calendarios públicos',
+    landing_login_title: 'Iniciar sesión',
+    landing_login_desc: 'Inicia sesión para ver tus grupos y reservas.',
+    landing_login_toggle: '¿Ya tienes cuenta? Iniciar sesión',
+    landing_code_sent: 'Código enviado — revisa tu correo.',
 };

@@ -2,7 +2,8 @@
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
-const currentGroup = window.location.pathname.split('/').filter(Boolean)[1] || null;
+const _qs = new URLSearchParams(window.location.search);
+const currentGroup = _qs.get('group') || window.location.pathname.split('/').filter(Boolean)[1] || null;
 let activeGroup = currentGroup;
 let allGroups = [];
 

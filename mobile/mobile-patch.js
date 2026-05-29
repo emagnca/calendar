@@ -22,4 +22,17 @@
         window._mobileGroup = null;
         window.location.reload();
     };
+
+    // 3. Intercept #adminLink clicks: rewrite /admin/GROUP → /admin/index.html?group=GROUP
+    //    Capacitor has no server-side routing so /admin/GROUP has no static file to serve.
+    document.addEventListener('click', function (e) {
+        const el = e.target.closest('#adminLink');
+        if (!el) return;
+        const href = el.getAttribute('href') || '';
+        const match = href.match(/^\/admin\/(.+)$/);
+        if (match) {
+            e.preventDefault();
+            window.location.href = '/admin/index.html?group=' + encodeURIComponent(match[1]);
+        }
+    });
 }());

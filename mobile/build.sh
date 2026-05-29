@@ -45,6 +45,32 @@ html = html.replace(
     '<script src="mobile-patch.js"></script>\n<script src="script.js"></script>\n<script src="mobile-landing.js"></script>\n<script src="mobile-calendar.js"></script>'
 )
 
+# 4. Inject mobile nav CSS: move hamburger to fixed FAB at bottom-right
+mobile_css = """<style id="mobile-nav-override">
+  .header-controls {
+    position: fixed !important;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 20px !important;
+    top: auto !important;
+    z-index: 9999 !important;
+  }
+  .header-menu {
+    top: auto !important;
+    bottom: calc(100% + 8px) !important;
+  }
+  .hamburger {
+    width: 48px !important; height: 48px !important;
+    font-size: 22px !important;
+    background: #1976d2 !important; color: white !important;
+    border-radius: 50% !important;
+    box-shadow: 0 3px 14px rgba(0,0,0,0.35) !important;
+    display: flex !important; align-items: center !important; justify-content: center !important;
+    padding: 0 !important;
+  }
+  .container { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important; }
+</style>"""
+html = html.replace('</head>', mobile_css + '\n</head>')
+
 with open(path, 'w') as f:
     f.write(html)
 
@@ -79,6 +105,40 @@ else:
         "axios.defaults.baseURL = '/api';",
         f"axios.defaults.baseURL = '{api_url}/api';"
     )
+
+    # 4. Inject mobile nav CSS: move hamburger to fixed FAB at bottom-right
+    admin_mobile_css = """
+<style id=\"mobile-nav-override\">
+  .topbar-right { position: static !important; }
+  #adminHamburgerBtn {
+    position: fixed !important;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 20px !important;
+    top: auto !important;
+    z-index: 9999 !important;
+    width: 48px !important;
+    height: 48px !important;
+    font-size: 22px !important;
+    background: #1976d2 !important;
+    color: white !important;
+    border-radius: 50% !important;
+    box-shadow: 0 3px 14px rgba(0,0,0,0.35) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+  }
+  #adminHeaderMenu {
+    position: fixed !important;
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 20px !important;
+    top: auto !important;
+    left: auto !important;
+  }
+  .layout { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important; }
+</style>
+"""
+    html = html.replace('</head>', admin_mobile_css + '</head>')
 
     with open(path, 'w') as f:
         f.write(html)
@@ -134,6 +194,30 @@ if confirmation in src:
     print('  script.js: calendar hook patched.')
 else:
     print('  WARNING: booking confirmation alert not found in script.js — calendar hook skipped.')
+PYEOF
+
+echo "→ Patching www/admin/admin.js..."
+python3 - <<'PYEOF'
+import os
+
+path = os.path.join(os.environ.get('WWW_DIR', 'www'), 'admin/admin.js')
+if not os.path.exists(path):
+    print('  admin/admin.js not found, skipping.')
+else:
+    with open(path) as f:
+        src = f.read()
+
+    old = "const currentGroup = window.location.pathname.split('/').filter(Boolean)[1] || null;"
+    new = ("const _qs = new URLSearchParams(window.location.search);\n"
+           "const currentGroup = _qs.get('group') || window.location.pathname.split('/').filter(Boolean)[1] || null;")
+
+    if old in src:
+        src = src.replace(old, new)
+        with open(path, 'w') as f:
+            f.write(src)
+        print('  admin/admin.js: currentGroup patched to read from ?group= query param.')
+    else:
+        print('  WARNING: currentGroup line not found in admin/admin.js — patch skipped.')
 PYEOF
 
 echo "✓ Build complete. Run 'npx cap sync' to push to iOS/Android."

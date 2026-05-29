@@ -14,6 +14,82 @@ let currentGroupInfo = null;
 let authToken        = localStorage.getItem('adminToken') || localStorage.getItem('authToken');
 if (authToken) axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
 
+// ── Stripe payment helpers ──────────────────────────────────────────────────
+
+let stripeInstance = null;
+async function initStripe() {
+    if (stripeInstance) return stripeInstance;
+    if (typeof Stripe === 'undefined') throw new Error('Stripe.js not loaded');
+    const paymentBase = axios.defaults.baseURL.replace(/\/api$/, '');
+    const res = await axios.get('/payment/config', { baseURL: paymentBase });
+    stripeInstance = Stripe(res.data.publishableKey);
+    return stripeInstance;
+}
+
+function formatAdminAmount(minor, currency) {
+    return (minor / 100).toFixed(2) + ' ' + (currency || 'sek').toUpperCase();
+}
+
+function showAdminPaymentModal(groupName, toPay, currency) {
+    return new Promise(async (resolve) => {
+        let stripe;
+        try { stripe = await initStripe(); }
+        catch (e) { alert(e.message); resolve(false); return; }
+
+        const amountStr = formatAdminAmount(toPay, currency);
+        const paymentBase = axios.defaults.baseURL.replace(/\/api$/, '');
+
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:9999';
+        overlay.innerHTML = `
+            <div style="background:#fff;border-radius:12px;padding:32px;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+                <h3 style="margin:0 0 8px">${t('payment_title')}</h3>
+                <p style="margin:0 0 20px;color:#555">${t('payment_amount', amountStr)}</p>
+                <label style="font-size:0.85rem;color:#444;display:block;margin-bottom:6px">${t('payment_card_label')}</label>
+                <div id="adminCardEl" style="border:1px solid #ccc;border-radius:6px;padding:12px"></div>
+                <div id="adminCardErr" style="color:#dc3545;font-size:0.85rem;min-height:20px;margin-top:6px"></div>
+                <div style="display:flex;gap:10px;margin-top:20px">
+                    <button id="adminPayBtn" style="flex:1;padding:10px;background:#1976d2;color:#fff;border:none;border-radius:6px;font-size:1rem;cursor:pointer">${t('payment_btn_pay', amountStr)}</button>
+                    <button id="adminCancelPayBtn" style="padding:10px 18px;background:#eee;border:none;border-radius:6px;font-size:1rem;cursor:pointer">${t('btn_cancel')}</button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+
+        const elements  = stripe.elements();
+        const cardEl    = elements.create('card', { style: { base: { fontSize: '16px', color: '#2c3e50' } } });
+        cardEl.mount('#adminCardEl');
+        cardEl.on('change', e => { document.getElementById('adminCardErr').textContent = e.error ? e.error.message : ''; });
+
+        document.getElementById('adminCancelPayBtn').addEventListener('click', () => {
+            cardEl.destroy(); overlay.remove(); resolve(false);
+        });
+
+        document.getElementById('adminPayBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('adminPayBtn');
+            btn.disabled = true; btn.textContent = t('payment_processing');
+            document.getElementById('adminCardErr').textContent = '';
+            try {
+                const intentRes = await axios.post('/payment/create-intent', {
+                    group: groupName, resourceId: '_admin', date: new Date().toISOString().slice(0,10),
+                    time: '00:00', bookerName: currentUser?.name || currentUser?.email || ''
+                }, { baseURL: paymentBase });
+                const { error } = await stripe.confirmCardPayment(
+                    intentRes.data.clientSecret, { payment_method: { card: cardEl } }
+                );
+                if (error) {
+                    document.getElementById('adminCardErr').textContent = error.message;
+                    btn.disabled = false; btn.textContent = t('payment_btn_pay', amountStr);
+                } else {
+                    cardEl.destroy(); overlay.remove(); resolve(true);
+                }
+            } catch (e) {
+                document.getElementById('adminCardErr').textContent = e.response?.data?.error || e.message;
+                btn.disabled = false; btn.textContent = t('payment_btn_pay', amountStr);
+            }
+        });
+    });
+}
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 const loginOverlay = document.getElementById('loginOverlay');
@@ -140,6 +216,18 @@ async function bootApp() {
         const gRes = await axios.get(`/groups/${activeGroup}`);
         currentGroupInfo = gRes.data;
     } catch (_) {}
+
+    // Payment gate: if group has an outstanding amount, require payment before showing admin UI
+    if (currentGroupInfo && currentGroupInfo.to_pay > 0) {
+        appEl.style.display = 'none';
+        loginOverlay.style.display = 'none';
+        const paid = await showAdminPaymentModal(activeGroup, currentGroupInfo.to_pay, currentGroupInfo.currency);
+        if (!paid) {
+            loginOverlay.style.display = 'flex';
+            return;
+        }
+        appEl.style.display = '';
+    }
 
     // Show Groups tab only for superadmin
     if (currentUser.role === 'superadmin') {

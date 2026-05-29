@@ -15,7 +15,9 @@ const groupSchema = new mongoose.Schema({
     adminName:  { type: String, trim: true, default: null },
     adminEmail: { type: String, trim: true, lowercase: true, default: null },
     adminPhone: { type: String, trim: true, default: null },
-    languages:  { type: [String], default: ['sv', 'en'] }
+    languages:  { type: [String], default: ['sv', 'en'] },
+    to_pay:     { type: Number,  default: 0, min: 0 },   // 0 = free; otherwise smallest currency unit (e.g. öre / cents)
+    currency:   { type: String,  default: 'sek', lowercase: true, trim: true }
 }, {
     timestamps: true
 });
